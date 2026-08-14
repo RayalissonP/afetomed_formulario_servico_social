@@ -170,9 +170,9 @@
   }
   .toolbar{
     max-width:960px;
-    margin:0 auto 18px auto;
+    margin:18px auto 32px auto;
     display:flex;
-    justify-content:flex-end;
+    justify-content:center;
     gap:10px;
   }
   .btn{
