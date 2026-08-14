@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AFETOMED - Formulário de Avaliação Social</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" type="image/png" href="assets/favicon.ico">
+</head>
+<body>
+
+<div class="toolbar">
+  <button class="btn btn-secondary" onclick="limparFormulario()">Limpar formulário</button>
+  <button class="btn btn-primary" onclick="window.print()">Gerar documento (imprimir / PDF)</button>
+</div>
+
+<form id="formAvaliacao">
+
+<!-- PÁGINA 1 -->
+<div class="sheet">
+  <div class="topbar">
+    <div class="logo-circle"><img src="assets/logo_afetomed.png" alt="AFETOMED" class="logo-img"></div>
+    <div>
+      <h1>AFETOMED - SAÚDE DOMICILIAR</h1>
+      <p>Formulário de Avaliação Social</p>
+    </div>
+  </div>
+
+  <div class="section-title">INFORMAÇÕES BÁSICAS DO PACIENTE</div>
+  <div class="field full">
+    <label for="nome_paciente">Nome Completo</label>
+    <input type="text" id="nome_paciente" name="nome_paciente">
+  </div>
+  <div class="field full">
+    <label for="estado_civil">Estado Civil</label>
+    <select id="estado_civil" name="estado_civil">
+      <option value="">Selecione</option>
+      <option>Solteiro(a)</option>
+      <option>Casado(a)</option>
+      <option>Divorciado(a)</option>
+      <option>Viúvo(a)</option>
+      <option>União estável</option>
+    </select>
+  </div>
+  <div class="field full">
+    <label>ENDEREÇO:</label>
+    <div class="endereco-row">
+      <div><label for="municipio">Município</label><input type="text" id="municipio" name="municipio"></div>
+      <div><label for="bairro">Bairro</label><input type="text" id="bairro" name="bairro"></div>
+      <div><label for="logradouro">Logradouro</label><input type="text" id="logradouro" name="logradouro"></div>
+      <div><label for="numero">Número</label><input type="text" id="numero" name="numero"></div>
+    </div>
+  </div>
+
+  <div class="section-title">INFORMAÇÕES DO CUIDADOR</div>
+  <div class="grid">
+    <div class="field">
+      <label>Possui Cuidador?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="possui_cuidador" value="Sim"> Sim</label>
+        <label><input type="radio" name="possui_cuidador" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="nome_cuidador">Nome do Cuidador</label>
+      <input type="text" id="nome_cuidador" name="nome_cuidador">
+    </div>
+    <div class="field">
+      <label for="parentesco_cuidador">Parentesco</label>
+      <input type="text" id="parentesco_cuidador" name="parentesco_cuidador">
+    </div>
+    <div class="field">
+      <label for="telefone_cuidador">Telefone</label>
+      <input type="tel" id="telefone_cuidador" name="telefone_cuidador" placeholder="(00)0 0000-0000">
+    </div>
+    <div class="field">
+      <label>Cuidador Presente?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="cuidador_presente" value="Sim"> Sim</label>
+        <label><input type="radio" name="cuidador_presente" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Cuidador Ativo?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="cuidador_ativo" value="Sim"> Sim</label>
+        <label><input type="radio" name="cuidador_ativo" value="Não"> Não</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">QUESTIONÁRIO DA RESIDÊNCIA</div>
+  <div class="grid">
+    <div class="field">
+      <label for="qtd_pessoas">Quantidade de Pessoas</label>
+      <input type="number" min="0" id="qtd_pessoas" name="qtd_pessoas">
+    </div>
+    <div class="field">
+      <label for="qtd_rendas">Quantidade de Rendas</label>
+      <input type="number" min="0" id="qtd_rendas" name="qtd_rendas">
+    </div>
+    <div class="field">
+      <label>Domicílio em Área de Risco?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="area_risco" value="Sim"> Sim</label>
+        <label><input type="radio" name="area_risco" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Apto a Receber?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="apto_receber" value="Sim"> Sim</label>
+        <label><input type="radio" name="apto_receber" value="Não"> Não</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">INFRAESTRUTURA DO DOMICÍLIO</div>
+  <div class="grid">
+    <div class="field">
+      <label for="condicoes_habitacao">Condições da Habitação</label>
+      <select id="condicoes_habitacao" name="condicoes_habitacao">
+        <option value="">Selecione</option>
+        <option>Própria</option>
+        <option>Alugada</option>
+        <option>Cedida</option>
+        <option>Financiada</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="higiene_domicilio">Higiene do Domicílio</label>
+      <select id="higiene_domicilio" name="higiene_domicilio">
+        <option value="">Selecione</option>
+        <option>Satisfatória</option>
+        <option>Regular</option>
+        <option>Insatisfatória</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Água Potável?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="agua_potavel" value="Sim"> Sim</label>
+        <label><input type="radio" name="agua_potavel" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Saneamento Interno?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="saneamento_interno" value="Sim"> Sim</label>
+        <label><input type="radio" name="saneamento_interno" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Rede de Esgoto?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="rede_esgoto" value="Sim"> Sim</label>
+        <label><input type="radio" name="rede_esgoto" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Energia Elétrica</label>
+      <div class="radio-group">
+        <label><input type="radio" name="energia_eletrica" value="Sim"> Sim</label>
+        <label><input type="radio" name="energia_eletrica" value="Não"> Não</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">ACESSIBILIDADE</div>
+  <div class="grid">
+    <div class="field">
+      <label>Acesso Cadeira de Rodas?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="acesso_cadeira" value="Sim"> Sim</label>
+        <label><input type="radio" name="acesso_cadeira" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Cômodos Acessíveis?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="comodos_acessiveis" value="Sim"> Sim</label>
+        <label><input type="radio" name="comodos_acessiveis" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Possui Animais?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="possui_animais" value="Sim"> Sim</label>
+        <label><input type="radio" name="possui_animais" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="quais_animais">Quais Animais?</label>
+      <input type="text" id="quais_animais" name="quais_animais">
+    </div>
+  </div>
+
+  <div class="footer-note">
+    AFETOMED - Saúde Domiciliar<br>
+    <label for="endereco_instituto" class="visually-hidden">Endereço e CNPJ da instituição</label>
+    <input type="text" id="endereco_instituto" name="endereco_instituto" class="footer-address-input" placeholder="Serrinha – BA, CEP: 48700-000 | CNPJ: 61.980.596/0001-28">
+  </div>
+</div>
+
+<!-- PÁGINA 2 -->
+<div class="sheet">
+  <div class="topbar">
+    <div class="logo-circle"><img src="assets/logo_afetomed.png" alt="AFETOMED" class="logo-img"></div>
+    <div>
+      <h1>AFETOMED - SAÚDE DOMICILIAR</h1>
+      <p>Formulário de Avaliação Social</p>
+    </div>
+  </div>
+
+  <div class="section-title">RECURSOS DE SAÚDE</div>
+  <div class="grid">
+    <div class="field">
+      <label>Recursos Próximos?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="recursos_proximos" value="Sim"> Sim</label>
+        <label><input type="radio" name="recursos_proximos" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="qual_recurso">Qual Recurso?</label>
+      <input type="text" id="qual_recurso" name="qual_recurso">
+    </div>
+    <div class="field">
+      <label>Assistido por UBS?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="assistido_ubs" value="Sim"> Sim</label>
+        <label><input type="radio" name="assistido_ubs" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="servico_movel">Serviço Móvel Emergencial</label>
+      <input type="text" id="servico_movel" name="servico_movel" placeholder="Ex: SAMU">
+    </div>
+    <div class="field">
+      <label>Hospital Geral?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="hospital_geral" value="Sim"> Sim</label>
+        <label><input type="radio" name="hospital_geral" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Hospital com UTI?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="hospital_uti" value="Sim"> Sim</label>
+        <label><input type="radio" name="hospital_uti" value="Não"> Não</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">INFORMAÇÕES DE RENDA</div>
+  <div class="grid">
+    <div class="field">
+      <label for="renda_principal">Renda Principal</label>
+      <input type="text" id="renda_principal" name="renda_principal">
+    </div>
+    <div class="field">
+      <label for="qtd_salarios">Qtd. Salários Mínimos</label>
+      <input type="text" id="qtd_salarios" name="qtd_salarios">
+    </div>
+    <div class="field">
+      <label>Recebe Auxílio?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="recebe_auxilio" value="Sim"> Sim</label>
+        <label><input type="radio" name="recebe_auxilio" value="Não"> Não</label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="qual_auxilio">Qual Auxílio?</label>
+      <input type="text" id="qual_auxilio" name="qual_auxilio" placeholder="Ex: BPC">
+    </div>
+    <div class="field full">
+      <label>Família em Home Care?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="familia_home_care" value="Sim"> Sim</label>
+        <label><input type="radio" name="familia_home_care" value="Não"> Não</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">PARECER SOCIAL</div>
+  <div class="field full">
+    <textarea name="parecer_social" placeholder="Descreva aqui o parecer social..."></textarea>
+  </div>
+
+  <div class="section-title">PROFISSIONAL RESPONSÁVEL</div>
+  <div class="grid">
+    <div class="field">
+      <label for="nome_profissional">Nome do Profissional</label>
+      <input type="text" id="nome_profissional" name="nome_profissional">
+    </div>
+    <div class="field">
+      <label for="cress_crm">CRESS/CRM</label>
+      <input type="text" id="cress_crm" name="cress_crm">
+    </div>
+    <div class="field">
+      <label for="telefone_profissional">Telefone</label>
+      <input type="tel" id="telefone_profissional" name="telefone_profissional" placeholder="(00) 0 0000-0000">
+    </div>
+    <div class="field">
+      <label for="data_avaliacao">Data da Avaliação</label>
+      <input type="text" id="data_avaliacao" name="data_avaliacao" placeholder="dd/mm/aaaa">
+    </div>
+  </div>
+
+  <div class="footer-note">
+    AFETOMED - Saúde Domiciliar<br>
+    <span id="endereco_instituto_espelho" class="footer-address"></span>
+  </div>
+</div>
+
+</form>
+<script src="js/script.js"></script>
+</body>
+</html>
