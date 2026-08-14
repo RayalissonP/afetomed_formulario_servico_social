@@ -237,7 +237,7 @@ function desenharTituloSecao(ctx, texto){
   var altura = 20;
   desenharRetangulo(ctx, 0, ctx.y, PAGE_W, altura, { preenchimento: COR_TEAL });
   desenharTexto(ctx, texto, MARGEM, ctx.y + 4, { tamanho: 10.5, negrito: true, cor: COR_BRANCO });
-  ctx.y += altura + 10;
+  ctx.y += altura + 5;
 }
 
 // Desenha rodapé fixo perto do final da página atual (um pouco mais colado
@@ -262,43 +262,46 @@ function centralizarTexto(ctx, texto, topoY, opcoes){
 // Desenho de campos (label + caixa de valor, ou grupo Sim/Não)
 // ---------------------------------------------------------------------------
 
-var ALTURA_LABEL = 11;
-var ALTURA_LINHA_VALOR = 12.5;
-var PADDING_CAIXA = 5;
-var ALTURA_MIN_CAIXA = 18;
-var ESPACO_ENTRE_LINHAS = 8;
+var ALTURA_LABEL = 9;          // rótulo (~10px = 7.5pt no CSS de impressão, +ajuste de linha)
+var GAP_LABEL_CAIXA = 3;       // equivalente ao margin-bottom:3px do rótulo no @media print
+var ALTURA_LINHA_VALOR = 11;   // altura de cada linha de texto dentro da caixa
+var PADDING_CAIXA = 4;         // equivalente ao padding:4px 6px do input no @media print
+var ALTURA_MIN_CAIXA = 15;     // altura mínima de uma caixa de 1 linha
+var ESPACO_ENTRE_LINHAS = 7;   // espaço entre uma linha de campos e a próxima
+var TAM_FONTE_LABEL = 7.5;
+var TAM_FONTE_VALOR = 9;
 
 function calcularAlturaCampo(ctx, campo, largura){
   if(campo.tipo === 'radio'){
-    return ALTURA_LABEL + 4 + 14;
+    return ALTURA_LABEL + GAP_LABEL_CAIXA + 12;
   }
   var valor = valorDoCampo(campo.nome);
   var larguraTexto = largura - (PADDING_CAIXA * 2);
 
   if(campo.multilinha){
-    var linhasMulti = quebrarTexto(ctx, valor || ' ', ctx.fontRegular, 10, larguraTexto);
+    var linhasMulti = quebrarTexto(ctx, valor || ' ', ctx.fontRegular, TAM_FONTE_VALOR, larguraTexto);
     var minLinhas = campo.minLinhas || 6;
     var nLinhas = Math.max(linhasMulti.length, minLinhas);
     var alturaCaixaMulti = (nLinhas * ALTURA_LINHA_VALOR) + (PADDING_CAIXA * 2);
-    return ALTURA_LABEL + 4 + alturaCaixaMulti;
+    return ALTURA_LABEL + GAP_LABEL_CAIXA + alturaCaixaMulti;
   }
 
-  var linhas = quebrarTexto(ctx, valor || ' ', ctx.fontRegular, 10, larguraTexto);
+  var linhas = quebrarTexto(ctx, valor || ' ', ctx.fontRegular, TAM_FONTE_VALOR, larguraTexto);
   var alturaCaixa = Math.max(ALTURA_MIN_CAIXA, (linhas.length * ALTURA_LINHA_VALOR) + (PADDING_CAIXA * 2));
-  return ALTURA_LABEL + 4 + alturaCaixa;
+  return ALTURA_LABEL + GAP_LABEL_CAIXA + alturaCaixa;
 }
 
 function desenharCampo(ctx, campo, x, topoY, largura, alturaLinha){
   // Rótulo
-  desenharTexto(ctx, campo.rotulo, x, topoY, { tamanho: 8, negrito: true, cor: COR_LABEL });
+  desenharTexto(ctx, campo.rotulo, x, topoY, { tamanho: TAM_FONTE_LABEL, negrito: true, cor: COR_LABEL });
 
-  var topoCaixa = topoY + ALTURA_LABEL + 4;
-  var alturaCaixa = alturaLinha - ALTURA_LABEL - 4;
+  var topoCaixa = topoY + ALTURA_LABEL + GAP_LABEL_CAIXA;
+  var alturaCaixa = alturaLinha - ALTURA_LABEL - GAP_LABEL_CAIXA;
 
   if(campo.tipo === 'radio'){
     var valorSelecionado = valorDoRadio(campo.nome);
     desenharOpcaoRadio(ctx, x, topoCaixa + 1, 'Sim', valorSelecionado === 'Sim');
-    desenharOpcaoRadio(ctx, x + 70, topoCaixa + 1, 'Não', valorSelecionado === 'Não');
+    desenharOpcaoRadio(ctx, x + 62, topoCaixa + 1, 'Não', valorSelecionado === 'Não');
     return;
   }
 
@@ -312,14 +315,14 @@ function desenharCampo(ctx, campo, x, topoY, largura, alturaLinha){
   var valor = valorDoCampo(campo.nome);
   var larguraTexto = largura - (PADDING_CAIXA * 2);
   if(valor === ''){
-    desenharTexto(ctx, '—', x + PADDING_CAIXA, topoCaixa + PADDING_CAIXA, {
-      tamanho: 10, cor: COR_PLACEHOLDER
+    desenharTexto(ctx, '—', x + PADDING_CAIXA, topoCaixa + PADDING_CAIXA - 1, {
+      tamanho: TAM_FONTE_VALOR, cor: COR_PLACEHOLDER
     });
   }else{
-    var linhas = quebrarTexto(ctx, valor, ctx.fontRegular, 10, larguraTexto);
+    var linhas = quebrarTexto(ctx, valor, ctx.fontRegular, TAM_FONTE_VALOR, larguraTexto);
     for(var i = 0; i < linhas.length; i++){
-      desenharTexto(ctx, linhas[i], x + PADDING_CAIXA, topoCaixa + PADDING_CAIXA + (i * ALTURA_LINHA_VALOR), {
-        tamanho: 10, cor: COR_TEXTO
+      desenharTexto(ctx, linhas[i], x + PADDING_CAIXA, topoCaixa + PADDING_CAIXA - 1 + (i * ALTURA_LINHA_VALOR), {
+        tamanho: TAM_FONTE_VALOR, cor: COR_TEXTO
       });
     }
   }
@@ -328,7 +331,7 @@ function desenharCampo(ctx, campo, x, topoY, largura, alturaLinha){
 // Desenha um botão de opção redondo (radio button de verdade), com um ponto
 // preenchido no centro quando selecionado - igual ao <input type="radio">.
 function desenharOpcaoRadio(ctx, x, topoY, texto, marcado){
-  var diametro = 9;
+  var diametro = 8;
   var raio = diametro / 2;
   var centroX = x + raio;
   var centroYpdf = yPdf(topoY + raio);
@@ -344,7 +347,7 @@ function desenharOpcaoRadio(ctx, x, topoY, texto, marcado){
   });
 
   if(marcado){
-    var raioInterno = raio - 2.5;
+    var raioInterno = raio - 2.2;
     ctx.page.drawEllipse({
       x: centroX,
       y: centroYpdf,
@@ -354,7 +357,7 @@ function desenharOpcaoRadio(ctx, x, topoY, texto, marcado){
     });
   }
 
-  desenharTexto(ctx, texto, x + diametro + 5, topoY - 1, { tamanho: 9.5, cor: COR_TEXTO });
+  desenharTexto(ctx, texto, x + diametro + 4, topoY - 1, { tamanho: TAM_FONTE_VALOR, cor: COR_TEXTO });
 }
 
 // Desenha uma lista de campos organizados em grade de 2 colunas.
@@ -412,31 +415,31 @@ function desenharLinhaEndereco(ctx){
   var alturaMax = 0;
   for(var i = 0; i < campos.length; i++){
     var valorMedido = valorDoCampo(campos[i].nome);
-    var linhasMedidas = quebrarTexto(ctx, valorMedido || ' ', ctx.fontRegular, 10, larguras[i] - PADDING_CAIXA * 2);
+    var linhasMedidas = quebrarTexto(ctx, valorMedido || ' ', ctx.fontRegular, TAM_FONTE_VALOR, larguras[i] - PADDING_CAIXA * 2);
     var alturaMedida = Math.max(ALTURA_MIN_CAIXA, (linhasMedidas.length * ALTURA_LINHA_VALOR) + PADDING_CAIXA * 2);
     alturaMax = Math.max(alturaMax, alturaMedida);
   }
 
-  var alturaTotal = ALTURA_LABEL + 6 + ALTURA_LABEL + 4 + alturaMax + ESPACO_ENTRE_LINHAS;
+  var alturaTotal = ALTURA_LABEL + GAP_LABEL_CAIXA + ALTURA_LABEL + GAP_LABEL_CAIXA + alturaMax + ESPACO_ENTRE_LINHAS;
   garantirEspaco(ctx, alturaTotal);
 
-  desenharTexto(ctx, 'ENDEREÇO:', MARGEM, ctx.y, { tamanho: 8, negrito: true, cor: COR_LABEL });
-  var topoColunas = ctx.y + ALTURA_LABEL + 6;
-  var topoCaixas = topoColunas + ALTURA_LABEL + 4;
+  desenharTexto(ctx, 'ENDEREÇO:', MARGEM, ctx.y, { tamanho: TAM_FONTE_LABEL, negrito: true, cor: COR_LABEL });
+  var topoColunas = ctx.y + ALTURA_LABEL + GAP_LABEL_CAIXA;
+  var topoCaixas = topoColunas + ALTURA_LABEL + GAP_LABEL_CAIXA;
 
   var x = MARGEM;
   for(var j = 0; j < campos.length; j++){
-    desenharTexto(ctx, campos[j].rotulo, x, topoColunas, { tamanho: 7.5, negrito: true, cor: COR_LABEL });
+    desenharTexto(ctx, campos[j].rotulo, x, topoColunas, { tamanho: TAM_FONTE_LABEL, negrito: true, cor: COR_LABEL });
     desenharRetangulo(ctx, x, topoCaixas, larguras[j], alturaMax, {
       preenchimento: COR_BRANCO, borda: COR_BORDA, espessuraBorda: 1
     });
     var valorCampo = valorDoCampo(campos[j].nome);
     if(valorCampo === ''){
-      desenharTexto(ctx, '—', x + PADDING_CAIXA, topoCaixas + PADDING_CAIXA, { tamanho: 10, cor: COR_PLACEHOLDER });
+      desenharTexto(ctx, '—', x + PADDING_CAIXA, topoCaixas + PADDING_CAIXA - 1, { tamanho: TAM_FONTE_VALOR, cor: COR_PLACEHOLDER });
     }else{
-      var linhasCampo = quebrarTexto(ctx, valorCampo, ctx.fontRegular, 10, larguras[j] - PADDING_CAIXA * 2);
+      var linhasCampo = quebrarTexto(ctx, valorCampo, ctx.fontRegular, TAM_FONTE_VALOR, larguras[j] - PADDING_CAIXA * 2);
       for(var k = 0; k < linhasCampo.length; k++){
-        desenharTexto(ctx, linhasCampo[k], x + PADDING_CAIXA, topoCaixas + PADDING_CAIXA + (k * ALTURA_LINHA_VALOR), { tamanho: 10, cor: COR_TEXTO });
+        desenharTexto(ctx, linhasCampo[k], x + PADDING_CAIXA, topoCaixas + PADDING_CAIXA - 1 + (k * ALTURA_LINHA_VALOR), { tamanho: TAM_FONTE_VALOR, cor: COR_TEXTO });
       }
     }
     x += larguras[j] + GAP_COLUNAS;
