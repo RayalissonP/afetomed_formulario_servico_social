@@ -24,6 +24,140 @@ function iniciarSincronizacaoRodape(){
 
 iniciarSincronizacaoRodape();
 
+// ---------------------------------------------------------------------------
+// Campo de assinatura: upload de imagem + arraste livre dentro da caixa
+// (suporta várias caixas no formulário, uma por página, cada uma independente)
+// ---------------------------------------------------------------------------
+
+function iniciarCamposAssinatura(){
+  var caixas = document.querySelectorAll('.stamp-box');
+  caixas.forEach(function(caixa){
+    iniciarCampoAssinatura(caixa);
+  });
+}
+
+function iniciarCampoAssinatura(caixa){
+  var placeholder = caixa.querySelector('.stamp-placeholder');
+  var botaoEnviar = caixa.querySelector('.btn-enviar-assinatura');
+  var input = caixa.querySelector('.input-assinatura');
+  if(!placeholder || !botaoEnviar || !input) return;
+
+  botaoEnviar.addEventListener('click', function(){
+    input.click();
+  });
+
+  input.addEventListener('change', function(){
+    var arquivo = input.files && input.files[0];
+    if(!arquivo) return;
+
+    if(!/^image\/(png|jpeg)$/.test(arquivo.type)){
+      alert('Envie a assinatura em formato PNG ou JPG.');
+      input.value = '';
+      return;
+    }
+
+    var leitor = new FileReader();
+    leitor.onload = function(){
+      inserirImagemAssinatura(caixa, placeholder, leitor.result, arquivo.type);
+    };
+    leitor.readAsDataURL(arquivo);
+    input.value = '';
+  });
+}
+
+function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
+  // Remove uma assinatura anterior nesta mesma caixa, se existir
+  var imgAntiga = caixa.querySelector('.stamp-img');
+  if(imgAntiga) imgAntiga.remove();
+  var botaoRemoverAntigo = caixa.querySelector('.stamp-remove-btn');
+  if(botaoRemoverAntigo) botaoRemoverAntigo.remove();
+
+  var img = document.createElement('img');
+  img.className = 'stamp-img';
+  img.draggable = false;
+  img.dataset.mime = mime;
+  img.dataset.dataUrl = dataUrl;
+
+  img.addEventListener('load', function(){
+    var caixaRect = caixa.getBoundingClientRect();
+    // Largura inicial proporcional à caixa, mantendo a proporção da imagem
+    var larguraInicial = Math.min(caixaRect.width * 0.45, img.naturalWidth);
+    var alturaInicial = larguraInicial * (img.naturalHeight / img.naturalWidth);
+    img.style.width = larguraInicial + 'px';
+    img.style.height = alturaInicial + 'px';
+    img.style.left = ((caixaRect.width - larguraInicial) / 2) + 'px';
+    img.style.top = ((caixaRect.height - alturaInicial) / 2) + 'px';
+  });
+
+  img.src = dataUrl;
+  caixa.appendChild(img);
+  placeholder.style.display = 'none';
+
+  var botaoRemover = document.createElement('button');
+  botaoRemover.type = 'button';
+  botaoRemover.className = 'stamp-remove-btn';
+  botaoRemover.title = 'Remover assinatura';
+  botaoRemover.textContent = '×';
+  botaoRemover.addEventListener('click', function(){
+    img.remove();
+    botaoRemover.remove();
+    placeholder.style.display = '';
+  });
+  caixa.appendChild(botaoRemover);
+
+  tornarArrastavel(img, caixa);
+}
+
+// Permite arrastar a imagem livremente dentro dos limites da caixa
+function tornarArrastavel(img, caixa){
+  var arrastando = false;
+  var offsetX = 0;
+  var offsetY = 0;
+
+  function iniciar(evento){
+    arrastando = true;
+    var pontoX = evento.touches ? evento.touches[0].clientX : evento.clientX;
+    var pontoY = evento.touches ? evento.touches[0].clientY : evento.clientY;
+    var imgRect = img.getBoundingClientRect();
+    offsetX = pontoX - imgRect.left;
+    offsetY = pontoY - imgRect.top;
+    evento.preventDefault();
+  }
+
+  function mover(evento){
+    if(!arrastando) return;
+    var pontoX = evento.touches ? evento.touches[0].clientX : evento.clientX;
+    var pontoY = evento.touches ? evento.touches[0].clientY : evento.clientY;
+    var caixaRect = caixa.getBoundingClientRect();
+    var imgRect = img.getBoundingClientRect();
+
+    var novoLeft = pontoX - offsetX - caixaRect.left;
+    var novoTop = pontoY - offsetY - caixaRect.top;
+
+    // Mantém a assinatura sempre dentro dos limites visíveis da caixa
+    novoLeft = Math.max(0, Math.min(novoLeft, caixaRect.width - imgRect.width));
+    novoTop = Math.max(0, Math.min(novoTop, caixaRect.height - imgRect.height));
+
+    img.style.left = novoLeft + 'px';
+    img.style.top = novoTop + 'px';
+    evento.preventDefault();
+  }
+
+  function soltar(){
+    arrastando = false;
+  }
+
+  img.addEventListener('mousedown', iniciar);
+  window.addEventListener('mousemove', mover);
+  window.addEventListener('mouseup', soltar);
+
+  img.addEventListener('touchstart', iniciar, { passive: false });
+  window.addEventListener('touchmove', mover, { passive: false });
+  window.addEventListener('touchend', soltar);
+}
+
+iniciarCamposAssinatura();
+
 // Monta um nome de arquivo seguro a partir do nome do paciente digitado no formulário
 function montarNomeArquivoPDF(){
   var campoNome = document.getElementById('nome_paciente');
@@ -142,6 +276,9 @@ function desenharRetangulo(ctx, x, topoY, largura, altura, opcoes){
   if(opcoes.borda){
     params.borderColor = opcoes.borda;
     params.borderWidth = opcoes.espessuraBorda || 1;
+    if(opcoes.tracejado){
+      params.borderDashArray = [3, 2];
+    }
   }
   ctx.page.drawRectangle(params);
 }
@@ -232,8 +369,10 @@ function garantirEspaco(ctx, alturaNecessaria){
   }
 }
 
-function desenharTituloSecao(ctx, texto){
-  garantirEspaco(ctx, 26);
+function desenharTituloSecao(ctx, texto, alturaConteudoSeguinte){
+  // Reserva também o espaço do conteúdo logo abaixo (quando informado),
+  // para o título nunca ficar "órfão" no fim de uma página
+  garantirEspaco(ctx, 26 + (alturaConteudoSeguinte || 0));
   var altura = 20;
   desenharRetangulo(ctx, 0, ctx.y, PAGE_W, altura, { preenchimento: COR_TEAL });
   desenharTexto(ctx, texto, MARGEM, ctx.y + 4, { tamanho: 10.5, negrito: true, cor: COR_BRANCO });
@@ -395,6 +534,87 @@ function desenharGrade(ctx, campos){
   }
 }
 
+// ---------------------------------------------------------------------------
+// Campo de assinatura (imagem enviada pelo usuário, posicionada livremente)
+// ---------------------------------------------------------------------------
+
+var ALTURA_ASSINATURA = 40; // pt - compacta o suficiente para caber ao final da página 1
+
+// Lê a posição/tamanho atuais da imagem de assinatura no DOM (se houver),
+// como frações da caixa, para reproduzir a mesma posição relativa no PDF.
+// idAssinatura identifica qual caixa ler (atributo data-assinatura-id no HTML).
+function obterInfoAssinatura(idAssinatura){
+  var caixa = document.querySelector('.stamp-box[data-assinatura-id="' + idAssinatura + '"]');
+  var img = caixa ? caixa.querySelector('.stamp-img') : null;
+  if(!caixa || !img || !img.dataset.dataUrl) return null;
+
+  var caixaRect = caixa.getBoundingClientRect();
+  var imgRect = img.getBoundingClientRect();
+  if(caixaRect.width === 0 || caixaRect.height === 0) return null;
+
+  return {
+    dataUrl: img.dataset.dataUrl,
+    mime: img.dataset.mime,
+    fracX: (imgRect.left - caixaRect.left) / caixaRect.width,
+    fracY: (imgRect.top - caixaRect.top) / caixaRect.height,
+    fracW: imgRect.width / caixaRect.width,
+    fracH: imgRect.height / caixaRect.height
+  };
+}
+
+function desenharCaixaAssinatura(ctx, rotulo, assinatura){
+  garantirEspaco(ctx, ALTURA_LABEL + GAP_LABEL_CAIXA + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS);
+
+  desenharTexto(ctx, rotulo, MARGEM, ctx.y, {
+    tamanho: TAM_FONTE_LABEL, negrito: true, cor: COR_LABEL
+  });
+  var topoCaixa = ctx.y + ALTURA_LABEL + GAP_LABEL_CAIXA;
+
+  desenharRetangulo(ctx, MARGEM, topoCaixa, LARGURA_CONTEUDO, ALTURA_ASSINATURA, {
+    preenchimento: COR_BRANCO,
+    borda: COR_BORDA,
+    espessuraBorda: 1,
+    tracejado: true
+  });
+
+  if(assinatura && assinatura.imagemEmbed){
+    var imgLargura = assinatura.fracW * LARGURA_CONTEUDO;
+    var imgAltura = assinatura.fracH * ALTURA_ASSINATURA;
+    var imgX = MARGEM + (assinatura.fracX * LARGURA_CONTEUDO);
+    var imgTopoY = topoCaixa + (assinatura.fracY * ALTURA_ASSINATURA);
+    ctx.page.drawImage(assinatura.imagemEmbed, {
+      x: imgX,
+      y: yPdf(imgTopoY + imgAltura),
+      width: imgLargura,
+      height: imgAltura
+    });
+  }else{
+    centralizarTexto(ctx, 'Assinatura não enviada', topoCaixa + (ALTURA_ASSINATURA / 2) - 4, {
+      tamanho: 9, cor: COR_PLACEHOLDER
+    });
+  }
+
+  ctx.y = topoCaixa + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS;
+}
+
+// Lê a assinatura de uma caixa específica do DOM e já a embute no pdfDoc,
+// pronta para ser desenhada. Retorna null se nenhuma imagem foi enviada.
+async function prepararAssinaturaParaPDF(pdfDoc, idAssinatura){
+  var info = obterInfoAssinatura(idAssinatura);
+  if(!info) return null;
+
+  try{
+    var bytes = base64ParaBytes(info.dataUrl.split(',')[1]);
+    info.imagemEmbed = info.mime === 'image/png'
+      ? await pdfDoc.embedPng(bytes)
+      : await pdfDoc.embedJpg(bytes);
+    return info;
+  }catch(erro){
+    console.warn('Não foi possível incluir a assinatura (' + idAssinatura + ') no PDF:', erro);
+    return null;
+  }
+}
+
 // Linha especial de endereço (4 colunas de larguras diferentes)
 function desenharLinhaEndereco(ctx){
   var proporcoes = [1.1, 0.8, 1.1, 0.6];
@@ -458,6 +678,8 @@ function montarPagina1(ctx){
   desenharTituloSecao(ctx, 'INFORMAÇÕES BÁSICAS DO PACIENTE');
   desenharGrade(ctx, [
     { tipo: 'text', rotulo: 'Nome Completo', nome: 'nome_paciente', largo: true },
+    { tipo: 'text', rotulo: 'CPF', nome: 'cpf_paciente' },
+    { tipo: 'text', rotulo: 'CNS (Cartão Nacional de Saúde)', nome: 'cns_paciente' },
     { tipo: 'text', rotulo: 'Estado Civil', nome: 'estado_civil', largo: true }
   ]);
   desenharLinhaEndereco(ctx);
@@ -498,6 +720,10 @@ function montarPagina1(ctx){
     { tipo: 'text', rotulo: 'Quais Animais?', nome: 'quais_animais' }
   ]);
 
+  var alturaCaixaAssinatura = ALTURA_LABEL + GAP_LABEL_CAIXA + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS;
+  desenharTituloSecao(ctx, 'ASSINATURA', alturaCaixaAssinatura);
+  desenharCaixaAssinatura(ctx, 'Assinatura do Paciente/Responsável', ctx.assinaturaPagina1);
+
   desenharRodape(ctx, valorDoRodape());
 }
 
@@ -535,6 +761,10 @@ function montarPagina2(ctx){
     { tipo: 'text', rotulo: 'Telefone', nome: 'telefone_profissional' },
     { tipo: 'text', rotulo: 'Data da Avaliação', nome: 'data_avaliacao' }
   ]);
+
+  var alturaCaixaAssinatura2 = ALTURA_LABEL + GAP_LABEL_CAIXA + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS;
+  desenharTituloSecao(ctx, 'ASSINATURA', alturaCaixaAssinatura2);
+  desenharCaixaAssinatura(ctx, 'Assinatura do Profissional Responsável', ctx.assinaturaPagina2);
 
   desenharRodape(ctx, valorDoRodape());
 }
@@ -581,6 +811,14 @@ async function baixarPDF(){
     }
 
     var ctx = criarContexto(pdfDoc, fontRegular, fontBold, logoImagem);
+
+    // Embute a imagem da assinatura (se o usuário enviou uma), preservando
+    // a posição em que ela foi arrastada dentro da caixa
+    // Embute as imagens de assinatura (pagina1 = paciente/responsável,
+    // pagina2 = profissional), preservando a posição em que cada uma foi
+    // arrastada dentro da sua respectiva caixa
+    ctx.assinaturaPagina1 = await prepararAssinaturaParaPDF(pdfDoc, 'pagina1');
+    ctx.assinaturaPagina2 = await prepararAssinaturaParaPDF(pdfDoc, 'pagina2');
 
     montarPagina1(ctx);
     montarPagina2(ctx);

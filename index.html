@@ -26,6 +26,16 @@
     <label for="nome_paciente">Nome Completo</label>
     <input type="text" id="nome_paciente" name="nome_paciente">
   </div>
+  <div class="grid">
+    <div class="field">
+      <label for="cpf_paciente">CPF</label>
+      <input type="text" id="cpf_paciente" name="cpf_paciente" placeholder="000.000.000-00">
+    </div>
+    <div class="field">
+      <label for="cns_paciente">CNS (Cartão Nacional de Saúde)</label>
+      <input type="text" id="cns_paciente" name="cns_paciente" placeholder="000 0000 0000 0000">
+    </div>
+  </div>
   <div class="field full">
     <label for="estado_civil">Estado Civil</label>
     <select id="estado_civil" name="estado_civil">
@@ -190,6 +200,19 @@
     </div>
   </div>
 
+  <div class="section-title">ASSINATURA</div>
+  <div class="field full">
+    <label>Assinatura do Paciente/Responsável</label>
+    <div class="stamp-box" data-assinatura-id="pagina1">
+      <div class="stamp-placeholder">
+        <p>Nenhuma assinatura enviada</p>
+        <button type="button" class="btn btn-secondary btn-small btn-enviar-assinatura">Enviar Assinatura</button>
+        <p class="stamp-hint">Depois de enviar, arraste a assinatura para posicioná-la</p>
+      </div>
+      <input type="file" class="input-assinatura" accept="image/png,image/jpeg" style="display:none">
+    </div>
+  </div>
+
   <div class="footer-note">
     AFETOMED - Saúde Domiciliar<br>
     <label for="endereco_instituto" class="visually-hidden">Endereço e CNPJ da instituição</label>
@@ -299,6 +322,19 @@
     <div class="field">
       <label for="data_avaliacao">Data da Avaliação</label>
       <input type="text" id="data_avaliacao" name="data_avaliacao" placeholder="dd/mm/aaaa">
+    </div>
+  </div>
+
+  <div class="section-title">ASSINATURA</div>
+  <div class="field full">
+    <label>Assinatura do Profissional Responsável</label>
+    <div class="stamp-box" data-assinatura-id="pagina2">
+      <div class="stamp-placeholder">
+        <p>Nenhuma assinatura enviada</p>
+        <button type="button" class="btn btn-secondary btn-small btn-enviar-assinatura">Enviar Assinatura</button>
+        <p class="stamp-hint">Depois de enviar, arraste a assinatura para posicioná-la</p>
+      </div>
+      <input type="file" class="input-assinatura" accept="image/png,image/jpeg" style="display:none">
     </div>
   </div>
 
