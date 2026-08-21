@@ -63,6 +63,85 @@ function iniciarCampoAssinatura(caixa){
     leitor.readAsDataURL(arquivo);
     input.value = '';
   });
+
+  tornarCaixaRedimensionavel(caixa);
+}
+
+// Permite aumentar a altura da própria caixa de assinatura arrastando a
+// alça na borda inferior. A altura padrão (já existente) é sempre o
+// tamanho mínimo - o usuário só consegue aumentar, nunca deixar menor
+// que o padrão original.
+function tornarCaixaRedimensionavel(caixa){
+  var alca = document.createElement('div');
+  alca.className = 'stamp-box-resize-handle';
+  alca.title = 'Arraste para aumentar a altura da caixa';
+  caixa.appendChild(alca);
+
+  var alturaMinima = null; // capturada na primeira interação (tamanho padrão atual)
+  var redimensionando = false;
+  var alturaInicialPx = 0;
+  var pontoInicialY = 0;
+
+  function iniciar(evento){
+    redimensionando = true;
+    if(alturaMinima === null){
+      alturaMinima = caixa.getBoundingClientRect().height;
+    }
+    alturaInicialPx = caixa.getBoundingClientRect().height;
+    pontoInicialY = evento.touches ? evento.touches[0].clientY : evento.clientY;
+    evento.preventDefault();
+    evento.stopPropagation();
+  }
+
+  function mover(evento){
+    if(!redimensionando) return;
+    var pontoY = evento.touches ? evento.touches[0].clientY : evento.clientY;
+    var delta = pontoY - pontoInicialY;
+    var alturaMaxima = 400; // teto generoso para evitar caixas absurdamente grandes
+
+    var novaAltura = alturaInicialPx + delta;
+    novaAltura = Math.max(alturaMinima, Math.min(novaAltura, alturaMaxima));
+
+    caixa.style.height = novaAltura + 'px';
+    caixa.dataset.alturaPersonalizada = '1';
+    reposicionarConteudoDaCaixa(caixa);
+    evento.preventDefault();
+  }
+
+  function soltar(){
+    redimensionando = false;
+  }
+
+  alca.addEventListener('mousedown', iniciar);
+  window.addEventListener('mousemove', mover);
+  window.addEventListener('mouseup', soltar);
+
+  alca.addEventListener('touchstart', iniciar, { passive: false });
+  window.addEventListener('touchmove', mover, { passive: false });
+  window.addEventListener('touchend', soltar);
+}
+
+// Depois de redimensionar a caixa, garante que a assinatura (se houver)
+// continue totalmente dentro dos novos limites, e reposiciona a alça de
+// redimensionar a imagem de acordo
+function reposicionarConteudoDaCaixa(caixa){
+  var img = caixa.querySelector('.stamp-img');
+  if(!img) return;
+  var alcaImagem = caixa.querySelector('.stamp-resize-handle');
+
+  var caixaRect = caixa.getBoundingClientRect();
+  var imgRect = img.getBoundingClientRect();
+
+  var imgLeftPx = imgRect.left - caixaRect.left;
+  var imgTopPx = imgRect.top - caixaRect.top;
+
+  var novoTopPx = Math.max(0, Math.min(imgTopPx, caixaRect.height - imgRect.height));
+  var novoLeftPx = Math.max(0, Math.min(imgLeftPx, caixaRect.width - imgRect.width));
+
+  img.style.top = ((novoTopPx / caixaRect.height) * 100) + '%';
+  img.style.left = ((novoLeftPx / caixaRect.width) * 100) + '%';
+
+  if(alcaImagem) atualizarAlcaRedimensionamento(img, alcaImagem, caixa);
 }
 
 function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
@@ -71,12 +150,18 @@ function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
   if(imgAntiga) imgAntiga.remove();
   var botaoRemoverAntigo = caixa.querySelector('.stamp-remove-btn');
   if(botaoRemoverAntigo) botaoRemoverAntigo.remove();
+  var alcaAntiga = caixa.querySelector('.stamp-resize-handle');
+  if(alcaAntiga) alcaAntiga.remove();
 
   var img = document.createElement('img');
   img.className = 'stamp-img';
   img.draggable = false;
   img.dataset.mime = mime;
   img.dataset.dataUrl = dataUrl;
+
+  var alca = document.createElement('div');
+  alca.className = 'stamp-resize-handle';
+  alca.title = 'Arraste para redimensionar';
 
   img.addEventListener('load', function(){
     var caixaRect = caixa.getBoundingClientRect();
@@ -98,6 +183,7 @@ function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
     img.style.height = 'auto';
     img.style.left = (((caixaRect.width - larguraInicialPx) / 2 / caixaRect.width) * 100) + '%';
     img.style.top = (((caixaRect.height - alturaInicialPx) / 2 / caixaRect.height) * 100) + '%';
+    atualizarAlcaRedimensionamento(img, alca, caixa);
   });
 
   img.src = dataUrl;
@@ -112,17 +198,31 @@ function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
   botaoRemover.addEventListener('click', function(){
     img.remove();
     botaoRemover.remove();
+    alca.remove();
     placeholder.style.display = '';
   });
   caixa.appendChild(botaoRemover);
+  caixa.appendChild(alca);
 
-  tornarArrastavel(img, caixa);
+  tornarArrastavel(img, alca, caixa);
+  tornarRedimensionavel(img, alca, caixa);
+}
+
+// Reposiciona a alcinha de redimensionar no canto inferior direito da
+// imagem, sempre que ela é movida ou tem o tamanho alterado
+function atualizarAlcaRedimensionamento(img, alca, caixa){
+  var caixaRect = caixa.getBoundingClientRect();
+  var imgRect = img.getBoundingClientRect();
+  var direitaPct = ((imgRect.right - caixaRect.left) / caixaRect.width) * 100;
+  var baixoPct = ((imgRect.bottom - caixaRect.top) / caixaRect.height) * 100;
+  alca.style.left = direitaPct + '%';
+  alca.style.top = baixoPct + '%';
 }
 
 // Permite arrastar a imagem livremente dentro dos limites da caixa.
 // A posição é sempre salva em % (da caixa), nunca em pixels fixos, para
 // continuar válida e sem "vazar" mesmo se a caixa mudar de tamanho.
-function tornarArrastavel(img, caixa){
+function tornarArrastavel(img, alca, caixa){
   var arrastando = false;
   var offsetX = 0;
   var offsetY = 0;
@@ -153,6 +253,7 @@ function tornarArrastavel(img, caixa){
 
     img.style.left = ((novoLeft / caixaRect.width) * 100) + '%';
     img.style.top = ((novoTop / caixaRect.height) * 100) + '%';
+    atualizarAlcaRedimensionamento(img, alca, caixa);
     evento.preventDefault();
   }
 
@@ -165,6 +266,62 @@ function tornarArrastavel(img, caixa){
   window.addEventListener('mouseup', soltar);
 
   img.addEventListener('touchstart', iniciar, { passive: false });
+  window.addEventListener('touchmove', mover, { passive: false });
+  window.addEventListener('touchend', soltar);
+}
+
+// Permite redimensionar a imagem arrastando a alcinha no canto inferior
+// direito. A proporção original é sempre preservada (a largura é ajustada
+// em % e a altura acompanha automaticamente via aspect-ratio), e o
+// tamanho nunca ultrapassa os limites da caixa.
+function tornarRedimensionavel(img, alca, caixa){
+  var redimensionando = false;
+  var larguraInicialPx = 0;
+  var pontoInicialX = 0;
+  var proporcao = 1;
+
+  function iniciar(evento){
+    redimensionando = true;
+    var imgRect = img.getBoundingClientRect();
+    larguraInicialPx = imgRect.width;
+    proporcao = img.naturalWidth / img.naturalHeight;
+    pontoInicialX = evento.touches ? evento.touches[0].clientX : evento.clientX;
+    evento.preventDefault();
+    evento.stopPropagation();
+  }
+
+  function mover(evento){
+    if(!redimensionando) return;
+    var pontoX = evento.touches ? evento.touches[0].clientX : evento.clientX;
+    var delta = pontoX - pontoInicialX;
+
+    var caixaRect = caixa.getBoundingClientRect();
+    var imgRect = img.getBoundingClientRect();
+    var imgLeftPx = imgRect.left - caixaRect.left;
+    var imgTopPx = imgRect.top - caixaRect.top;
+
+    var larguraMinima = 28;
+    var larguraMaxPelaLargura = caixaRect.width - imgLeftPx; // não passa da borda direita
+    var alturaMaxPelaCaixa = caixaRect.height - imgTopPx; // não passa da borda inferior
+    var larguraMaxPelaAltura = alturaMaxPelaCaixa * proporcao;
+
+    var novaLargura = larguraInicialPx + delta;
+    novaLargura = Math.max(larguraMinima, Math.min(novaLargura, larguraMaxPelaLargura, larguraMaxPelaAltura));
+
+    img.style.width = ((novaLargura / caixaRect.width) * 100) + '%';
+    atualizarAlcaRedimensionamento(img, alca, caixa);
+    evento.preventDefault();
+  }
+
+  function soltar(){
+    redimensionando = false;
+  }
+
+  alca.addEventListener('mousedown', iniciar);
+  window.addEventListener('mousemove', mover);
+  window.addEventListener('mouseup', soltar);
+
+  alca.addEventListener('touchstart', iniciar, { passive: false });
   window.addEventListener('touchmove', mover, { passive: false });
   window.addEventListener('touchend', soltar);
 }
@@ -551,60 +708,82 @@ function desenharGrade(ctx, campos){
 // Campo de assinatura (imagem enviada pelo usuário, posicionada livremente)
 // ---------------------------------------------------------------------------
 
-var ALTURA_MIN_ASSINATURA = 28; // pt - altura da caixa quando vazia ou com imagem pequena
-var ALTURA_MAX_ASSINATURA = 48; // pt - teto para a caixa não estourar a página
 var PADDING_ASSINATURA = 5;
+var ALTURA_TETO_ASSINATURA = 220; // pt - teto de segurança absoluto (evita algo absurdo)
+var ALTURA_PADRAO_ASSINATURA = 34; // pt - usado só se a caixa não for encontrada no DOM
 
-// Lê a posição/tamanho reais (em pixels) da imagem de assinatura no DOM,
-// se houver. idAssinatura identifica qual caixa ler (atributo
-// data-assinatura-id no HTML). Os valores em pixel são convertidos para
-// pontos do PDF sempre com a MESMA escala (baseada na largura), o que
-// preserva a proporção original da imagem e evita achatamento.
-function obterInfoAssinatura(idAssinatura){
+// Lê o estado atual (em pixels) de uma caixa de assinatura no DOM: o
+// tamanho da própria caixa (que o usuário pode ter aumentado arrastando a
+// alça inferior) e, se houver, a posição/tamanho da imagem dentro dela.
+// idAssinatura identifica qual caixa ler (atributo data-assinatura-id).
+function obterEstadoCaixaAssinatura(idAssinatura){
   var caixa = document.querySelector('.stamp-box[data-assinatura-id="' + idAssinatura + '"]');
-  var img = caixa ? caixa.querySelector('.stamp-img') : null;
-  if(!caixa || !img || !img.dataset.dataUrl) return null;
+  if(!caixa) return null;
 
   var caixaRect = caixa.getBoundingClientRect();
-  var imgRect = img.getBoundingClientRect();
-  if(caixaRect.width === 0 || imgRect.width === 0) return null;
+  if(caixaRect.width === 0) return null;
 
-  return {
-    dataUrl: img.dataset.dataUrl,
-    mime: img.dataset.mime,
-    imgLeftPx: imgRect.left - caixaRect.left,
-    imgTopPx: imgRect.top - caixaRect.top,
-    imgLarguraPx: imgRect.width,
-    imgAlturaPx: imgRect.height,
-    caixaLarguraPx: caixaRect.width
+  var estado = {
+    caixaLarguraPx: caixaRect.width,
+    caixaAlturaPx: caixaRect.height,
+    // Só true se o usuário arrastou a alça de redimensionar a caixa.
+    // Sem isso, a altura "natural" da caixa vazia (que inclui o texto e o
+    // botão do placeholder) não deve ditar o tamanho no PDF.
+    alturaPersonalizada: caixa.dataset.alturaPersonalizada === '1',
+    temImagem: false
   };
+
+  var img = caixa.querySelector('.stamp-img');
+  if(img && img.dataset.dataUrl){
+    var imgRect = img.getBoundingClientRect();
+    estado.temImagem = true;
+    estado.dataUrl = img.dataset.dataUrl;
+    estado.mime = img.dataset.mime;
+    estado.imgLeftPx = imgRect.left - caixaRect.left;
+    estado.imgTopPx = imgRect.top - caixaRect.top;
+    estado.imgLarguraPx = imgRect.width;
+    estado.imgAlturaPx = imgRect.height;
+  }
+
+  return estado;
 }
 
 // Calcula, em pontos do PDF, a altura da caixa e a posição/tamanho da
 // imagem dentro dela - sempre com a mesma escala nos dois eixos (preserva
-// a proporção original, sem esticar nem achatar a assinatura).
+// a proporção original, sem esticar nem achatar a assinatura). A altura
+// da caixa no PDF acompanha a altura que o usuário deixou na tela quando
+// há imagem ou quando ele redimensionou manualmente a caixa; caso
+// contrário usa um tamanho padrão compacto (a caixa vazia com o
+// placeholder de texto/botão fica mais alta que o necessário no PDF).
 function calcularLayoutAssinatura(assinatura){
   if(!assinatura){
-    return { temImagem: false, alturaCaixa: ALTURA_MIN_ASSINATURA };
+    return { temImagem: false, alturaCaixa: ALTURA_PADRAO_ASSINATURA };
   }
 
   var escala = LARGURA_CONTEUDO / assinatura.caixaLarguraPx;
+
+  if(!assinatura.temImagem){
+    var alturaVazia = assinatura.alturaPersonalizada
+      ? Math.min(assinatura.caixaAlturaPx * escala, ALTURA_TETO_ASSINATURA)
+      : ALTURA_PADRAO_ASSINATURA;
+    return { temImagem: false, alturaCaixa: alturaVazia };
+  }
+
+  var alturaCaixa = Math.min(assinatura.caixaAlturaPx * escala, ALTURA_TETO_ASSINATURA);
   var offsetX = assinatura.imgLeftPx * escala;
   var offsetY = assinatura.imgTopPx * escala;
   var largura = assinatura.imgLarguraPx * escala;
   var altura = assinatura.imgAlturaPx * escala;
 
-  var alturaCaixa = Math.max(ALTURA_MIN_ASSINATURA, offsetY + altura + PADDING_ASSINATURA);
-
-  if(alturaCaixa > ALTURA_MAX_ASSINATURA){
-    // Reduz tudo proporcionalmente (mesma escala nos dois eixos) para
-    // caber no teto da caixa, sem distorcer a assinatura
-    var fator = ALTURA_MAX_ASSINATURA / alturaCaixa;
+  // Segurança: a imagem já fica sempre dentro da caixa na tela, mas se o
+  // teto de segurança acima cortou a altura da caixa, reduz a imagem na
+  // mesma proporção para continuar cabendo
+  if((offsetY + altura + PADDING_ASSINATURA) > alturaCaixa){
+    var fator = alturaCaixa / (offsetY + altura + PADDING_ASSINATURA);
     offsetX *= fator;
     offsetY *= fator;
     largura *= fator;
     altura *= fator;
-    alturaCaixa = ALTURA_MAX_ASSINATURA;
   }
 
   return {
@@ -650,21 +829,24 @@ function desenharSecaoAssinatura(ctx, tituloSecao, rotuloCampo, assinatura){
   ctx.y = topoCaixa + layout.alturaCaixa + ESPACO_ENTRE_LINHAS;
 }
 
-// Lê a assinatura de uma caixa específica do DOM e já a embute no pdfDoc,
-// pronta para ser desenhada. Retorna null se nenhuma imagem foi enviada.
+// Lê o estado de uma caixa específica do DOM e, se houver imagem, já a
+// embute no pdfDoc, pronta para ser desenhada. Retorna null apenas se a
+// caixa em si não existir no DOM.
 async function prepararAssinaturaParaPDF(pdfDoc, idAssinatura){
-  var info = obterInfoAssinatura(idAssinatura);
-  if(!info) return null;
+  var estado = obterEstadoCaixaAssinatura(idAssinatura);
+  if(!estado) return null;
+  if(!estado.temImagem) return estado;
 
   try{
-    var bytes = base64ParaBytes(info.dataUrl.split(',')[1]);
-    info.imagemEmbed = info.mime === 'image/png'
+    var bytes = base64ParaBytes(estado.dataUrl.split(',')[1]);
+    estado.imagemEmbed = estado.mime === 'image/png'
       ? await pdfDoc.embedPng(bytes)
       : await pdfDoc.embedJpg(bytes);
-    return info;
+    return estado;
   }catch(erro){
     console.warn('Não foi possível incluir a assinatura (' + idAssinatura + ') no PDF:', erro);
-    return null;
+    estado.temImagem = false;
+    return estado;
   }
 }
 
