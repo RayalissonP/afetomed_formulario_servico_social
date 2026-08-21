@@ -80,13 +80,24 @@ function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
 
   img.addEventListener('load', function(){
     var caixaRect = caixa.getBoundingClientRect();
-    // Largura inicial proporcional à caixa, mantendo a proporção da imagem
-    var larguraInicial = Math.min(caixaRect.width * 0.45, img.naturalWidth);
-    var alturaInicial = larguraInicial * (img.naturalHeight / img.naturalWidth);
-    img.style.width = larguraInicial + 'px';
-    img.style.height = alturaInicial + 'px';
-    img.style.left = ((caixaRect.width - larguraInicial) / 2) + 'px';
-    img.style.top = ((caixaRect.height - alturaInicial) / 2) + 'px';
+    // Largura inicial proporcional à caixa, mantendo a proporção da imagem.
+    // A largura é definida em % (da caixa) e a altura fica "auto" via
+    // aspect-ratio: assim a assinatura nunca fica achatada nem esticada,
+    // mesmo que a caixa mude de tamanho (ex.: layout compacto de impressão).
+    var larguraInicialPx = Math.min(caixaRect.width * 0.32, img.naturalWidth);
+    var alturaInicialPx = larguraInicialPx * (img.naturalHeight / img.naturalWidth);
+    // Trava extra: mesmo para imagens de proporção incomum (muito altas),
+    // o tamanho inicial nunca ultrapassa a própria altura da caixa
+    if(alturaInicialPx > caixaRect.height * 0.85){
+      var fatorAjuste = (caixaRect.height * 0.85) / alturaInicialPx;
+      larguraInicialPx *= fatorAjuste;
+      alturaInicialPx *= fatorAjuste;
+    }
+    img.style.width = ((larguraInicialPx / caixaRect.width) * 100) + '%';
+    img.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
+    img.style.height = 'auto';
+    img.style.left = (((caixaRect.width - larguraInicialPx) / 2 / caixaRect.width) * 100) + '%';
+    img.style.top = (((caixaRect.height - alturaInicialPx) / 2 / caixaRect.height) * 100) + '%';
   });
 
   img.src = dataUrl;
@@ -108,7 +119,9 @@ function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
   tornarArrastavel(img, caixa);
 }
 
-// Permite arrastar a imagem livremente dentro dos limites da caixa
+// Permite arrastar a imagem livremente dentro dos limites da caixa.
+// A posição é sempre salva em % (da caixa), nunca em pixels fixos, para
+// continuar válida e sem "vazar" mesmo se a caixa mudar de tamanho.
 function tornarArrastavel(img, caixa){
   var arrastando = false;
   var offsetX = 0;
@@ -138,8 +151,8 @@ function tornarArrastavel(img, caixa){
     novoLeft = Math.max(0, Math.min(novoLeft, caixaRect.width - imgRect.width));
     novoTop = Math.max(0, Math.min(novoTop, caixaRect.height - imgRect.height));
 
-    img.style.left = novoLeft + 'px';
-    img.style.top = novoTop + 'px';
+    img.style.left = ((novoLeft / caixaRect.width) * 100) + '%';
+    img.style.top = ((novoTop / caixaRect.height) * 100) + '%';
     evento.preventDefault();
   }
 
@@ -538,11 +551,15 @@ function desenharGrade(ctx, campos){
 // Campo de assinatura (imagem enviada pelo usuário, posicionada livremente)
 // ---------------------------------------------------------------------------
 
-var ALTURA_ASSINATURA = 40; // pt - compacta o suficiente para caber ao final da página 1
+var ALTURA_MIN_ASSINATURA = 28; // pt - altura da caixa quando vazia ou com imagem pequena
+var ALTURA_MAX_ASSINATURA = 48; // pt - teto para a caixa não estourar a página
+var PADDING_ASSINATURA = 5;
 
-// Lê a posição/tamanho atuais da imagem de assinatura no DOM (se houver),
-// como frações da caixa, para reproduzir a mesma posição relativa no PDF.
-// idAssinatura identifica qual caixa ler (atributo data-assinatura-id no HTML).
+// Lê a posição/tamanho reais (em pixels) da imagem de assinatura no DOM,
+// se houver. idAssinatura identifica qual caixa ler (atributo
+// data-assinatura-id no HTML). Os valores em pixel são convertidos para
+// pontos do PDF sempre com a MESMA escala (baseada na largura), o que
+// preserva a proporção original da imagem e evita achatamento.
 function obterInfoAssinatura(idAssinatura){
   var caixa = document.querySelector('.stamp-box[data-assinatura-id="' + idAssinatura + '"]');
   var img = caixa ? caixa.querySelector('.stamp-img') : null;
@@ -550,51 +567,87 @@ function obterInfoAssinatura(idAssinatura){
 
   var caixaRect = caixa.getBoundingClientRect();
   var imgRect = img.getBoundingClientRect();
-  if(caixaRect.width === 0 || caixaRect.height === 0) return null;
+  if(caixaRect.width === 0 || imgRect.width === 0) return null;
 
   return {
     dataUrl: img.dataset.dataUrl,
     mime: img.dataset.mime,
-    fracX: (imgRect.left - caixaRect.left) / caixaRect.width,
-    fracY: (imgRect.top - caixaRect.top) / caixaRect.height,
-    fracW: imgRect.width / caixaRect.width,
-    fracH: imgRect.height / caixaRect.height
+    imgLeftPx: imgRect.left - caixaRect.left,
+    imgTopPx: imgRect.top - caixaRect.top,
+    imgLarguraPx: imgRect.width,
+    imgAlturaPx: imgRect.height,
+    caixaLarguraPx: caixaRect.width
   };
 }
 
-function desenharCaixaAssinatura(ctx, rotulo, assinatura){
-  garantirEspaco(ctx, ALTURA_LABEL + GAP_LABEL_CAIXA + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS);
+// Calcula, em pontos do PDF, a altura da caixa e a posição/tamanho da
+// imagem dentro dela - sempre com a mesma escala nos dois eixos (preserva
+// a proporção original, sem esticar nem achatar a assinatura).
+function calcularLayoutAssinatura(assinatura){
+  if(!assinatura){
+    return { temImagem: false, alturaCaixa: ALTURA_MIN_ASSINATURA };
+  }
 
-  desenharTexto(ctx, rotulo, MARGEM, ctx.y, {
+  var escala = LARGURA_CONTEUDO / assinatura.caixaLarguraPx;
+  var offsetX = assinatura.imgLeftPx * escala;
+  var offsetY = assinatura.imgTopPx * escala;
+  var largura = assinatura.imgLarguraPx * escala;
+  var altura = assinatura.imgAlturaPx * escala;
+
+  var alturaCaixa = Math.max(ALTURA_MIN_ASSINATURA, offsetY + altura + PADDING_ASSINATURA);
+
+  if(alturaCaixa > ALTURA_MAX_ASSINATURA){
+    // Reduz tudo proporcionalmente (mesma escala nos dois eixos) para
+    // caber no teto da caixa, sem distorcer a assinatura
+    var fator = ALTURA_MAX_ASSINATURA / alturaCaixa;
+    offsetX *= fator;
+    offsetY *= fator;
+    largura *= fator;
+    altura *= fator;
+    alturaCaixa = ALTURA_MAX_ASSINATURA;
+  }
+
+  return {
+    temImagem: true,
+    alturaCaixa: alturaCaixa,
+    offsetX: offsetX,
+    offsetY: offsetY,
+    largura: largura,
+    altura: altura
+  };
+}
+
+function desenharSecaoAssinatura(ctx, tituloSecao, rotuloCampo, assinatura){
+  var layout = calcularLayoutAssinatura(assinatura);
+  var alturaConteudo = ALTURA_LABEL + GAP_LABEL_CAIXA + layout.alturaCaixa + ESPACO_ENTRE_LINHAS;
+  desenharTituloSecao(ctx, tituloSecao, alturaConteudo);
+
+  desenharTexto(ctx, rotuloCampo, MARGEM, ctx.y, {
     tamanho: TAM_FONTE_LABEL, negrito: true, cor: COR_LABEL
   });
   var topoCaixa = ctx.y + ALTURA_LABEL + GAP_LABEL_CAIXA;
 
-  desenharRetangulo(ctx, MARGEM, topoCaixa, LARGURA_CONTEUDO, ALTURA_ASSINATURA, {
+  desenharRetangulo(ctx, MARGEM, topoCaixa, LARGURA_CONTEUDO, layout.alturaCaixa, {
     preenchimento: COR_BRANCO,
     borda: COR_BORDA,
     espessuraBorda: 1,
     tracejado: true
   });
 
-  if(assinatura && assinatura.imagemEmbed){
-    var imgLargura = assinatura.fracW * LARGURA_CONTEUDO;
-    var imgAltura = assinatura.fracH * ALTURA_ASSINATURA;
-    var imgX = MARGEM + (assinatura.fracX * LARGURA_CONTEUDO);
-    var imgTopoY = topoCaixa + (assinatura.fracY * ALTURA_ASSINATURA);
+  if(layout.temImagem && assinatura.imagemEmbed){
     ctx.page.drawImage(assinatura.imagemEmbed, {
-      x: imgX,
-      y: yPdf(imgTopoY + imgAltura),
-      width: imgLargura,
-      height: imgAltura
+      x: MARGEM + layout.offsetX,
+      y: yPdf(topoCaixa + layout.offsetY + layout.altura),
+      width: layout.largura,
+      height: layout.altura
     });
   }else{
-    centralizarTexto(ctx, 'Assinatura não enviada', topoCaixa + (ALTURA_ASSINATURA / 2) - 4, {
+    centralizarTexto(ctx, 'Assinatura não enviada', topoCaixa + (layout.alturaCaixa / 2) - 4, {
       tamanho: 9, cor: COR_PLACEHOLDER
     });
   }
 
-  ctx.y = topoCaixa + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS;
+  ctx.y = topoCaixa + layout.alturaCaixa + ESPACO_ENTRE_LINHAS;
 }
 
 // Lê a assinatura de uma caixa específica do DOM e já a embute no pdfDoc,
@@ -720,9 +773,7 @@ function montarPagina1(ctx){
     { tipo: 'text', rotulo: 'Quais Animais?', nome: 'quais_animais' }
   ]);
 
-  var alturaCaixaAssinatura = ALTURA_LABEL + GAP_LABEL_CAIXA + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS;
-  desenharTituloSecao(ctx, 'ASSINATURA', alturaCaixaAssinatura);
-  desenharCaixaAssinatura(ctx, 'Assinatura do Paciente/Responsável', ctx.assinaturaPagina1);
+  desenharSecaoAssinatura(ctx, 'ASSINATURA', 'Assinatura do Paciente/Responsável', ctx.assinaturaPagina1);
 
   desenharRodape(ctx, valorDoRodape());
 }
@@ -762,9 +813,7 @@ function montarPagina2(ctx){
     { tipo: 'text', rotulo: 'Data da Avaliação', nome: 'data_avaliacao' }
   ]);
 
-  var alturaCaixaAssinatura2 = ALTURA_LABEL + GAP_LABEL_CAIXA + ALTURA_ASSINATURA + ESPACO_ENTRE_LINHAS;
-  desenharTituloSecao(ctx, 'ASSINATURA', alturaCaixaAssinatura2);
-  desenharCaixaAssinatura(ctx, 'Assinatura do Profissional Responsável', ctx.assinaturaPagina2);
+  desenharSecaoAssinatura(ctx, 'ASSINATURA', 'Assinatura do Profissional Responsável', ctx.assinaturaPagina2);
 
   desenharRodape(ctx, valorDoRodape());
 }

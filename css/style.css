@@ -122,7 +122,7 @@
     margin:16px 24px 24px 24px;
     border:1px dashed #a9c3d6;
     border-radius:4px;
-    min-height:120px;
+    min-height:80px;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -287,7 +287,7 @@
     .endereco-row > div label{font-size:10px;margin-bottom:2px;}
     .endereco-row input{font-size:11px;padding:3px 6px;}
 
-    .stamp-box{margin:6px 16px 8px 16px;min-height:55px;font-size:11px;overflow:visible;}
+    .stamp-box{margin:5px 16px 6px 16px;min-height:65px;font-size:11px;overflow:visible;}
     .stamp-placeholder,.stamp-remove-btn{display:none !important;}
     .stamp-img{box-shadow:none;}
     .footer-note{font-size:9px;padding:6px 16px 8px 16px;margin-top:auto;}
