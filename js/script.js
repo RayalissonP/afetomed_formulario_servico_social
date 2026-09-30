@@ -25,7 +25,8 @@ function iniciarSincronizacaoRodape(){
 iniciarSincronizacaoRodape();
 
 // ---------------------------------------------------------------------------
-// Campo de assinatura: upload de imagem + arraste livre dentro da caixa
+// Campo de assinatura: upload de imagem (carimbo/assinatura) e/ou desenho, várias
+// imagens juntas na mesma caixa, cada uma com arraste livre
 // (suporta várias caixas no formulário, uma por página, cada uma independente)
 // ---------------------------------------------------------------------------
 
@@ -37,14 +38,25 @@ function iniciarCamposAssinatura(){
 }
 
 function iniciarCampoAssinatura(caixa){
+  var campo = caixa.parentNode; // os botões ficam logo abaixo da caixa, no mesmo campo
   var placeholder = caixa.querySelector('.stamp-placeholder');
-  var botaoEnviar = caixa.querySelector('.btn-enviar-assinatura');
+  var botaoEnviar = campo.querySelector('.btn-enviar-assinatura');
   var input = caixa.querySelector('.input-assinatura');
   if(!placeholder || !botaoEnviar || !input) return;
 
   botaoEnviar.addEventListener('click', function(){
     input.click();
   });
+
+  // Assinatura desenhada na tela (celular/tablet)
+  var botaoDesenhar = campo.querySelector('.btn-desenhar-assinatura');
+  if(botaoDesenhar){
+    botaoDesenhar.addEventListener('click', function(){
+      abrirModalDesenho(function(dataUrl){
+        inserirImagemAssinatura(caixa, placeholder, dataUrl, 'image/png');
+      });
+    });
+  }
 
   input.addEventListener('change', function(){
     var arquivo = input.files && input.files[0];
@@ -125,43 +137,88 @@ function tornarCaixaRedimensionavel(caixa){
 // continue totalmente dentro dos novos limites, e reposiciona a alça de
 // redimensionar a imagem de acordo
 function reposicionarConteudoDaCaixa(caixa){
-  var img = caixa.querySelector('.stamp-img');
-  if(!img) return;
-  var alcaImagem = caixa.querySelector('.stamp-resize-handle');
-
+  var imagens = caixa.querySelectorAll('.stamp-img');
   var caixaRect = caixa.getBoundingClientRect();
-  var imgRect = img.getBoundingClientRect();
 
-  var imgLeftPx = imgRect.left - caixaRect.left;
-  var imgTopPx = imgRect.top - caixaRect.top;
+  imagens.forEach(function(img){
+    var imgRect = img.getBoundingClientRect();
+    var imgLeftPx = imgRect.left - caixaRect.left;
+    var imgTopPx = imgRect.top - caixaRect.top;
 
-  var novoTopPx = Math.max(0, Math.min(imgTopPx, caixaRect.height - imgRect.height));
-  var novoLeftPx = Math.max(0, Math.min(imgLeftPx, caixaRect.width - imgRect.width));
+    var novoTopPx = Math.max(0, Math.min(imgTopPx, caixaRect.height - imgRect.height));
+    var novoLeftPx = Math.max(0, Math.min(imgLeftPx, caixaRect.width - imgRect.width));
 
-  img.style.top = ((novoTopPx / caixaRect.height) * 100) + '%';
-  img.style.left = ((novoLeftPx / caixaRect.width) * 100) + '%';
+    img.style.top = ((novoTopPx / caixaRect.height) * 100) + '%';
+    img.style.left = ((novoLeftPx / caixaRect.width) * 100) + '%';
 
-  if(alcaImagem) atualizarAlcaRedimensionamento(img, alcaImagem, caixa);
+    if(img._alca) atualizarAlcaRedimensionamento(img, img._alca, caixa);
+  });
 }
 
-function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
-  // Remove uma assinatura anterior nesta mesma caixa, se existir
-  var imgAntiga = caixa.querySelector('.stamp-img');
-  if(imgAntiga) imgAntiga.remove();
-  var botaoRemoverAntigo = caixa.querySelector('.stamp-remove-btn');
-  if(botaoRemoverAntigo) botaoRemoverAntigo.remove();
-  var alcaAntiga = caixa.querySelector('.stamp-resize-handle');
-  if(alcaAntiga) alcaAntiga.remove();
+// Escolhe onde colocar uma imagem nova sem cobrir as que já estão na caixa:
+// tenta o centro, depois o lado direito/esquerdo das existentes e, por fim,
+// as margens. Se nada estiver livre, usa o centro (o usuário pode arrastar).
+function posicionarSemSobrepor(caixa, img, larguraPx, alturaPx){
+  var caixaRect = caixa.getBoundingClientRect();
+  var topoPx = (caixaRect.height - alturaPx) / 2;
 
+  var ocupados = [];
+  caixa.querySelectorAll('.stamp-img').forEach(function(outra){
+    if(outra === img) return;
+    var r = outra.getBoundingClientRect();
+    if(r.width === 0) return;
+    ocupados.push({ esq: r.left - caixaRect.left, dir: r.right - caixaRect.left });
+  });
+
+  var centro = (caixaRect.width - larguraPx) / 2;
+  if(!ocupados.length) return { x: centro, y: topoPx };
+
+  var folga = 4;
+  var menorEsq = Math.min.apply(null, ocupados.map(function(o){ return o.esq; }));
+  var maiorDir = Math.max.apply(null, ocupados.map(function(o){ return o.dir; }));
+  var margem = caixaRect.width * 0.04;
+  var candidatos = [
+    centro,
+    maiorDir + folga,
+    menorEsq - folga - larguraPx,
+    margem,
+    caixaRect.width - larguraPx - margem
+  ];
+
+  for(var i = 0; i < candidatos.length; i++){
+    var x = candidatos[i];
+    if(x < 0 || x + larguraPx > caixaRect.width) continue;
+    var livre = ocupados.every(function(o){ return (x + larguraPx) <= o.esq || x >= o.dir; });
+    if(livre) return { x: x, y: topoPx };
+  }
+  return { x: centro, y: topoPx };
+}
+
+var contadorZAssinatura = 1; // a última imagem tocada fica por cima das outras
+
+function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
+  // As imagens que já estão na caixa são mantidas: cada envio/desenho
+  // adiciona uma nova (ex.: carimbo + assinatura desenhada juntos).
   var img = document.createElement('img');
   img.className = 'stamp-img';
   img.draggable = false;
   img.dataset.mime = mime;
   img.dataset.dataUrl = dataUrl;
+  img.style.zIndex = ++contadorZAssinatura;
 
   var alca = document.createElement('div');
   alca.className = 'stamp-resize-handle';
   alca.title = 'Arraste para redimensionar';
+
+  var botaoRemover = document.createElement('button');
+  botaoRemover.type = 'button';
+  botaoRemover.className = 'stamp-remove-btn';
+  botaoRemover.title = 'Remover';
+  botaoRemover.textContent = '×';
+
+  // Cada imagem conhece a própria alça e o próprio botão de remover
+  img._alca = alca;
+  img._botaoRemover = botaoRemover;
 
   img.addEventListener('load', function(){
     var caixaRect = caixa.getBoundingClientRect();
@@ -178,11 +235,12 @@ function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
       larguraInicialPx *= fatorAjuste;
       alturaInicialPx *= fatorAjuste;
     }
+    var pos = posicionarSemSobrepor(caixa, img, larguraInicialPx, alturaInicialPx);
     img.style.width = ((larguraInicialPx / caixaRect.width) * 100) + '%';
     img.style.aspectRatio = img.naturalWidth + ' / ' + img.naturalHeight;
     img.style.height = 'auto';
-    img.style.left = (((caixaRect.width - larguraInicialPx) / 2 / caixaRect.width) * 100) + '%';
-    img.style.top = (((caixaRect.height - alturaInicialPx) / 2 / caixaRect.height) * 100) + '%';
+    img.style.left = ((pos.x / caixaRect.width) * 100) + '%';
+    img.style.top = ((pos.y / caixaRect.height) * 100) + '%';
     atualizarAlcaRedimensionamento(img, alca, caixa);
   });
 
@@ -190,16 +248,12 @@ function inserirImagemAssinatura(caixa, placeholder, dataUrl, mime){
   caixa.appendChild(img);
   placeholder.style.display = 'none';
 
-  var botaoRemover = document.createElement('button');
-  botaoRemover.type = 'button';
-  botaoRemover.className = 'stamp-remove-btn';
-  botaoRemover.title = 'Remover assinatura';
-  botaoRemover.textContent = '×';
   botaoRemover.addEventListener('click', function(){
     img.remove();
     botaoRemover.remove();
     alca.remove();
-    placeholder.style.display = '';
+    // Só volta a mostrar o aviso quando não sobrou nenhuma imagem
+    if(!caixa.querySelector('.stamp-img')) placeholder.style.display = '';
   });
   caixa.appendChild(botaoRemover);
   caixa.appendChild(alca);
@@ -217,6 +271,13 @@ function atualizarAlcaRedimensionamento(img, alca, caixa){
   var baixoPct = ((imgRect.bottom - caixaRect.top) / caixaRect.height) * 100;
   alca.style.left = direitaPct + '%';
   alca.style.top = baixoPct + '%';
+
+  // O botão de remover fica no canto superior direito da própria imagem
+  var botao = img._botaoRemover;
+  if(botao){
+    botao.style.left = direitaPct + '%';
+    botao.style.top = (((imgRect.top - caixaRect.top) / caixaRect.height) * 100) + '%';
+  }
 }
 
 // Permite arrastar a imagem livremente dentro dos limites da caixa.
@@ -234,6 +295,7 @@ function tornarArrastavel(img, alca, caixa){
     var imgRect = img.getBoundingClientRect();
     offsetX = pontoX - imgRect.left;
     offsetY = pontoY - imgRect.top;
+    img.style.zIndex = ++contadorZAssinatura; // traz a imagem tocada para frente
     evento.preventDefault();
   }
 
@@ -324,6 +386,308 @@ function tornarRedimensionavel(img, alca, caixa){
   alca.addEventListener('touchstart', iniciar, { passive: false });
   window.addEventListener('touchmove', mover, { passive: false });
   window.addEventListener('touchend', soltar);
+}
+
+// ---------------------------------------------------------------------------
+// Assinatura desenhada na tela (celular/tablet)
+// Abre um modal com um canvas onde a pessoa assina com o dedo ou caneta. O
+// traço é azul (simula caneta esferográfica) e o resultado é um PNG com
+// fundo transparente, recortado no traço. Esse PNG entra no mesmo fluxo da
+// assinatura enviada como imagem: arrastar, redimensionar, remover e PDF.
+// ---------------------------------------------------------------------------
+
+var COR_CANETA = '#1d3fbb';
+var LARGURA_CANETA_MIN = 1.8; // px - traço rápido (mais fino)
+var LARGURA_CANETA_MAX = 3.6; // px - traço lento (mais grosso)
+var LARGURA_MAX_EXPORTACAO = 1400; // px - limite do PNG gerado
+
+var estadoDesenho = null; // criado na primeira abertura do modal
+
+function pontoMedio(a, b){
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function prepararPincel(ctx, largura){
+  ctx.strokeStyle = COR_CANETA;
+  ctx.fillStyle = COR_CANETA;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = largura;
+}
+
+// Um traço é uma lista de pontos {x, y, w}. Ele é desenhado em pedaços
+// (início, meio, fim) suavizados por curvas, cada pedaço com a largura do
+// seu ponto. Os mesmos pedaços servem para desenhar ao vivo e para redesenhar.
+function desenharPontoUnico(ctx, p){
+  prepararPincel(ctx, p.w);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.w / 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function desenharInicioTraco(ctx, p){
+  var fim = pontoMedio(p[0], p[1]);
+  prepararPincel(ctx, p[0].w);
+  ctx.beginPath();
+  ctx.moveTo(p[0].x, p[0].y);
+  ctx.lineTo(fim.x, fim.y);
+  ctx.stroke();
+}
+
+function desenharMeioTraco(ctx, p, k){
+  var ini = pontoMedio(p[k - 1], p[k]);
+  var fim = pontoMedio(p[k], p[k + 1]);
+  prepararPincel(ctx, p[k].w);
+  ctx.beginPath();
+  ctx.moveTo(ini.x, ini.y);
+  ctx.quadraticCurveTo(p[k].x, p[k].y, fim.x, fim.y);
+  ctx.stroke();
+}
+
+function desenharFimTraco(ctx, p){
+  var n = p.length - 1;
+  var ini = pontoMedio(p[n - 1], p[n]);
+  prepararPincel(ctx, p[n].w);
+  ctx.beginPath();
+  ctx.moveTo(ini.x, ini.y);
+  ctx.lineTo(p[n].x, p[n].y);
+  ctx.stroke();
+}
+
+function desenharTracoCompleto(ctx, traco){
+  var p = traco.pontos;
+  if(p.length === 1){ desenharPontoUnico(ctx, p[0]); return; }
+  desenharInicioTraco(ctx, p);
+  for(var k = 1; k < p.length - 1; k++){
+    desenharMeioTraco(ctx, p, k);
+  }
+  desenharFimTraco(ctx, p);
+}
+
+function redesenharTudo(m){
+  m.ctx.setTransform(m.dpr, 0, 0, m.dpr, 0, 0);
+  m.ctx.clearRect(0, 0, m.larguraCss, m.alturaCss);
+  m.tracos.forEach(function(t){ desenharTracoCompleto(m.ctx, t); });
+}
+
+function atualizarEstadoModal(m){
+  var temTraco = m.tracos.length > 0;
+  m.btnDesfazer.disabled = !temTraco;
+  m.btnLimpar.disabled = !temTraco;
+  m.btnConfirmar.disabled = !temTraco;
+  m.area.classList.toggle('com-traco', temTraco);
+}
+
+// Ajusta o tamanho interno do canvas ao tamanho na tela (nítido em telas de
+// alta densidade). Se o celular for girado, o desenho é reduzido/ampliado
+// para continuar cabendo na área, em vez de ser perdido.
+function ajustarCanvas(m){
+  var r = m.area.getBoundingClientRect();
+  var w = Math.max(1, Math.round(r.width));
+  var h = Math.max(1, Math.round(r.height));
+  if(w === m.larguraCss && h === m.alturaCss) return;
+
+  if(m.larguraCss > 0 && m.alturaCss > 0 && m.tracos.length){
+    var f = Math.min(w / m.larguraCss, h / m.alturaCss);
+    m.tracos.forEach(function(t){
+      t.pontos.forEach(function(p){ p.x *= f; p.y *= f; });
+    });
+  }
+
+  m.dpr = window.devicePixelRatio || 1;
+  m.larguraCss = w;
+  m.alturaCss = h;
+  m.canvas.width = Math.round(w * m.dpr);
+  m.canvas.height = Math.round(h * m.dpr);
+  redesenharTudo(m);
+}
+
+function larguraDoPonto(m, evento, x, y, agora){
+  var alvo;
+  if(evento.pointerType === 'pen' && evento.pressure > 0){
+    // Caneta de tela (stylus): a pressão define a espessura
+    alvo = LARGURA_CANETA_MIN + (LARGURA_CANETA_MAX - LARGURA_CANETA_MIN) * Math.min(1, evento.pressure * 1.4);
+  }else{
+    // Dedo/mouse: mais lento = mais grosso, mais rápido = mais fino
+    var ultimo = m.atual.pontos[m.atual.pontos.length - 1];
+    var dt = Math.max(1, agora - m.atual.ultimoTempo);
+    var velocidade = Math.sqrt(Math.pow(x - ultimo.x, 2) + Math.pow(y - ultimo.y, 2)) / dt; // px/ms
+    var fator = Math.min(1, velocidade / 2.5);
+    alvo = LARGURA_CANETA_MAX - (LARGURA_CANETA_MAX - LARGURA_CANETA_MIN) * fator;
+  }
+  return m.atual.larguraAtual * 0.7 + alvo * 0.3; // suaviza variações bruscas
+}
+
+function iniciarTraco(m, evento){
+  if(m.pointerId !== null) return; // ignora segundo dedo
+  m.pointerId = evento.pointerId;
+  try{ m.canvas.setPointerCapture(evento.pointerId); }catch(e){}
+
+  var r = m.canvas.getBoundingClientRect();
+  var w = evento.pointerType === 'pen' && evento.pressure > 0
+    ? LARGURA_CANETA_MIN + (LARGURA_CANETA_MAX - LARGURA_CANETA_MIN) * Math.min(1, evento.pressure * 1.4)
+    : (LARGURA_CANETA_MIN + LARGURA_CANETA_MAX) / 2;
+  var ponto = { x: evento.clientX - r.left, y: evento.clientY - r.top, w: w };
+  m.atual = { pontos: [ponto], larguraAtual: w, ultimoTempo: evento.timeStamp };
+  m.tracos.push(m.atual);
+  desenharPontoUnico(m.ctx, ponto); // já mostra o "toque" na tela
+  atualizarEstadoModal(m);
+  evento.preventDefault();
+}
+
+function moverTraco(m, evento){
+  if(m.pointerId !== evento.pointerId || !m.atual) return;
+  var r = m.canvas.getBoundingClientRect();
+  var eventos = evento.getCoalescedEvents ? evento.getCoalescedEvents() : [evento];
+  if(!eventos.length) eventos = [evento];
+
+  eventos.forEach(function(e){
+    var p = m.atual.pontos;
+    var x = e.clientX - r.left;
+    var y = e.clientY - r.top;
+    var ultimo = p[p.length - 1];
+    if(Math.abs(x - ultimo.x) < 0.8 && Math.abs(y - ultimo.y) < 0.8) return; // ruído
+
+    var w = larguraDoPonto(m, e, x, y, e.timeStamp);
+    m.atual.larguraAtual = w;
+    m.atual.ultimoTempo = e.timeStamp;
+    p.push({ x: x, y: y, w: w });
+
+    // Desenha só o pedaço novo (rápido, sem redesenhar tudo)
+    if(p.length === 2){
+      desenharInicioTraco(m.ctx, p);
+    }else{
+      desenharMeioTraco(m.ctx, p, p.length - 2);
+    }
+  });
+  evento.preventDefault();
+}
+
+function finalizarTraco(m, evento){
+  if(m.pointerId !== evento.pointerId) return;
+  if(m.atual && m.atual.pontos.length > 1){
+    desenharFimTraco(m.ctx, m.atual.pontos);
+  }
+  m.atual = null;
+  m.pointerId = null;
+}
+
+// Gera o PNG transparente, recortado no traço (com uma pequena margem)
+function exportarAssinaturaDesenhada(m){
+  if(!m.tracos.length) return null;
+
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  m.tracos.forEach(function(t){
+    t.pontos.forEach(function(p){
+      minX = Math.min(minX, p.x - p.w); maxX = Math.max(maxX, p.x + p.w);
+      minY = Math.min(minY, p.y - p.w); maxY = Math.max(maxY, p.y + p.w);
+    });
+  });
+
+  var margem = 6;
+  var larguraCss = Math.max(1, maxX - minX + margem * 2);
+  var alturaCss = Math.max(1, maxY - minY + margem * 2);
+  var escala = Math.max(m.dpr, 2);
+  if(larguraCss * escala > LARGURA_MAX_EXPORTACAO){
+    escala = LARGURA_MAX_EXPORTACAO / larguraCss;
+  }
+
+  var saida = document.createElement('canvas');
+  saida.width = Math.ceil(larguraCss * escala);
+  saida.height = Math.ceil(alturaCss * escala);
+  var ctx = saida.getContext('2d');
+  ctx.setTransform(escala, 0, 0, escala, -(minX - margem) * escala, -(minY - margem) * escala);
+  m.tracos.forEach(function(t){ desenharTracoCompleto(ctx, t); });
+  return saida.toDataURL('image/png');
+}
+
+function fecharModalDesenho(){
+  var m = estadoDesenho;
+  if(!m) return;
+  m.raiz.hidden = true;
+  document.body.classList.remove('sig-modal-aberto');
+  m.tracos = [];
+  m.atual = null;
+  m.pointerId = null;
+  m.aoConfirmar = null;
+}
+
+function criarEstadoDesenho(){
+  var raiz = document.getElementById('modalAssinatura');
+  if(!raiz) return null;
+
+  var m = {
+    raiz: raiz,
+    area: raiz.querySelector('.sig-canvas-wrap'),
+    canvas: raiz.querySelector('.sig-canvas'),
+    btnDesfazer: raiz.querySelector('[data-sig="desfazer"]'),
+    btnLimpar: raiz.querySelector('[data-sig="limpar"]'),
+    btnCancelar: raiz.querySelector('[data-sig="cancelar"]'),
+    btnConfirmar: raiz.querySelector('[data-sig="confirmar"]'),
+    ctx: null, dpr: 1, larguraCss: 0, alturaCss: 0,
+    tracos: [], atual: null, pointerId: null, aoConfirmar: null
+  };
+  m.ctx = m.canvas.getContext('2d');
+
+  m.canvas.addEventListener('pointerdown', function(e){ iniciarTraco(m, e); });
+  m.canvas.addEventListener('pointermove', function(e){ moverTraco(m, e); });
+  m.canvas.addEventListener('pointerup', function(e){ finalizarTraco(m, e); });
+  m.canvas.addEventListener('pointercancel', function(e){ finalizarTraco(m, e); });
+
+  m.btnDesfazer.addEventListener('click', function(){
+    m.tracos.pop();
+    redesenharTudo(m);
+    atualizarEstadoModal(m);
+  });
+  m.btnLimpar.addEventListener('click', function(){
+    m.tracos = [];
+    redesenharTudo(m);
+    atualizarEstadoModal(m);
+  });
+  m.btnCancelar.addEventListener('click', fecharModalDesenho);
+  m.btnConfirmar.addEventListener('click', function(){
+    var dataUrl = exportarAssinaturaDesenhada(m);
+    var aoConfirmar = m.aoConfirmar;
+    if(!dataUrl || !aoConfirmar) return;
+    fecharModalDesenho(); // fecha antes: o layout da página precisa estar estável ao inserir
+    aoConfirmar(dataUrl);
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && !m.raiz.hidden) fecharModalDesenho();
+  });
+
+  if(window.ResizeObserver){
+    new ResizeObserver(function(){
+      if(!m.raiz.hidden) ajustarCanvas(m);
+    }).observe(m.area);
+  }else{
+    window.addEventListener('resize', function(){
+      if(!m.raiz.hidden) ajustarCanvas(m);
+    });
+  }
+
+  return m;
+}
+
+function abrirModalDesenho(aoConfirmar){
+  if(!estadoDesenho) estadoDesenho = criarEstadoDesenho();
+  var m = estadoDesenho;
+  if(!m){
+    alert('Não foi possível abrir o campo de desenho.');
+    return;
+  }
+  m.aoConfirmar = aoConfirmar;
+  m.tracos = [];
+  m.atual = null;
+  m.pointerId = null;
+  m.larguraCss = 0;
+  m.alturaCss = 0;
+
+  m.raiz.hidden = false;
+  document.body.classList.add('sig-modal-aberto');
+  ajustarCanvas(m);
+  atualizarEstadoModal(m);
 }
 
 iniciarCamposAssinatura();
@@ -730,20 +1094,28 @@ function obterEstadoCaixaAssinatura(idAssinatura){
     // Sem isso, a altura "natural" da caixa vazia (que inclui o texto e o
     // botão do placeholder) não deve ditar o tamanho no PDF.
     alturaPersonalizada: caixa.dataset.alturaPersonalizada === '1',
-    temImagem: false
+    temImagem: false,
+    imagens: []
   };
 
-  var img = caixa.querySelector('.stamp-img');
-  if(img && img.dataset.dataUrl){
+  // Lê todas as imagens da caixa (carimbo, assinatura desenhada etc.),
+  // na ordem de empilhamento da tela (a de cima é desenhada por último)
+  var imagens = Array.prototype.slice.call(caixa.querySelectorAll('.stamp-img'))
+    .filter(function(img){ return img.dataset.dataUrl; })
+    .sort(function(a, b){ return (parseInt(a.style.zIndex, 10) || 0) - (parseInt(b.style.zIndex, 10) || 0); });
+
+  imagens.forEach(function(img){
     var imgRect = img.getBoundingClientRect();
-    estado.temImagem = true;
-    estado.dataUrl = img.dataset.dataUrl;
-    estado.mime = img.dataset.mime;
-    estado.imgLeftPx = imgRect.left - caixaRect.left;
-    estado.imgTopPx = imgRect.top - caixaRect.top;
-    estado.imgLarguraPx = imgRect.width;
-    estado.imgAlturaPx = imgRect.height;
-  }
+    estado.imagens.push({
+      dataUrl: img.dataset.dataUrl,
+      mime: img.dataset.mime,
+      imgLeftPx: imgRect.left - caixaRect.left,
+      imgTopPx: imgRect.top - caixaRect.top,
+      imgLarguraPx: imgRect.width,
+      imgAlturaPx: imgRect.height
+    });
+  });
+  estado.temImagem = estado.imagens.length > 0;
 
   return estado;
 }
@@ -770,29 +1142,38 @@ function calcularLayoutAssinatura(assinatura){
   }
 
   var alturaCaixa = Math.min(assinatura.caixaAlturaPx * escala, ALTURA_TETO_ASSINATURA);
-  var offsetX = assinatura.imgLeftPx * escala;
-  var offsetY = assinatura.imgTopPx * escala;
-  var largura = assinatura.imgLarguraPx * escala;
-  var altura = assinatura.imgAlturaPx * escala;
 
-  // Segurança: a imagem já fica sempre dentro da caixa na tela, mas se o
-  // teto de segurança acima cortou a altura da caixa, reduz a imagem na
-  // mesma proporção para continuar cabendo
-  if((offsetY + altura + PADDING_ASSINATURA) > alturaCaixa){
-    var fator = alturaCaixa / (offsetY + altura + PADDING_ASSINATURA);
-    offsetX *= fator;
-    offsetY *= fator;
-    largura *= fator;
-    altura *= fator;
+  var itens = assinatura.imagens.map(function(i){
+    return {
+      imagemEmbed: i.imagemEmbed,
+      offsetX: i.imgLeftPx * escala,
+      offsetY: i.imgTopPx * escala,
+      largura: i.imgLarguraPx * escala,
+      altura: i.imgAlturaPx * escala
+    };
+  });
+
+  // Segurança: as imagens já ficam sempre dentro da caixa na tela, mas se o
+  // teto de segurança acima cortou a altura da caixa, reduz todas na mesma
+  // proporção para continuarem cabendo
+  var fator = 1;
+  itens.forEach(function(it){
+    var necessario = it.offsetY + it.altura + PADDING_ASSINATURA;
+    if(necessario > alturaCaixa) fator = Math.min(fator, alturaCaixa / necessario);
+  });
+  if(fator < 1){
+    itens.forEach(function(it){
+      it.offsetX *= fator;
+      it.offsetY *= fator;
+      it.largura *= fator;
+      it.altura *= fator;
+    });
   }
 
   return {
     temImagem: true,
     alturaCaixa: alturaCaixa,
-    offsetX: offsetX,
-    offsetY: offsetY,
-    largura: largura,
-    altura: altura
+    itens: itens
   };
 }
 
@@ -813,12 +1194,14 @@ function desenharSecaoAssinatura(ctx, tituloSecao, rotuloCampo, assinatura){
     tracejado: true
   });
 
-  if(layout.temImagem && assinatura.imagemEmbed){
-    ctx.page.drawImage(assinatura.imagemEmbed, {
-      x: MARGEM + layout.offsetX,
-      y: yPdf(topoCaixa + layout.offsetY + layout.altura),
-      width: layout.largura,
-      height: layout.altura
+  if(layout.temImagem){
+    layout.itens.forEach(function(item){
+      ctx.page.drawImage(item.imagemEmbed, {
+        x: MARGEM + item.offsetX,
+        y: yPdf(topoCaixa + item.offsetY + item.altura),
+        width: item.largura,
+        height: item.altura
+      });
     });
   }else{
     centralizarTexto(ctx, 'Assinatura não enviada', topoCaixa + (layout.alturaCaixa / 2) - 4, {
@@ -837,17 +1220,23 @@ async function prepararAssinaturaParaPDF(pdfDoc, idAssinatura){
   if(!estado) return null;
   if(!estado.temImagem) return estado;
 
-  try{
-    var bytes = base64ParaBytes(estado.dataUrl.split(',')[1]);
-    estado.imagemEmbed = estado.mime === 'image/png'
-      ? await pdfDoc.embedPng(bytes)
-      : await pdfDoc.embedJpg(bytes);
-    return estado;
-  }catch(erro){
-    console.warn('Não foi possível incluir a assinatura (' + idAssinatura + ') no PDF:', erro);
-    estado.temImagem = false;
-    return estado;
+  // Embute cada imagem; se alguma falhar, as demais continuam indo para o PDF
+  var embutidas = [];
+  for(var i = 0; i < estado.imagens.length; i++){
+    var item = estado.imagens[i];
+    try{
+      var bytes = base64ParaBytes(item.dataUrl.split(',')[1]);
+      item.imagemEmbed = item.mime === 'image/png'
+        ? await pdfDoc.embedPng(bytes)
+        : await pdfDoc.embedJpg(bytes);
+      embutidas.push(item);
+    }catch(erro){
+      console.warn('Não foi possível incluir uma imagem da assinatura (' + idAssinatura + ') no PDF:', erro);
+    }
   }
+  estado.imagens = embutidas;
+  estado.temImagem = embutidas.length > 0;
+  return estado;
 }
 
 // Linha especial de endereço (4 colunas de larguras diferentes)

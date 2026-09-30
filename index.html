@@ -205,11 +205,14 @@
     <label>Assinatura do ProfissionalResponsável</label>
     <div class="stamp-box" data-assinatura-id="pagina1">
       <div class="stamp-placeholder">
-        <p>Nenhuma assinatura enviada</p>
-        <button type="button" class="btn btn-secondary btn-small btn-enviar-assinatura">Enviar Assinatura</button>
-        <p class="stamp-hint">Depois de enviar, arraste a assinatura para posicioná-la</p>
+        <p>Nenhuma assinatura ou carimbo inserido</p>
+        <p class="stamp-hint">Você pode inserir mais de uma imagem (ex.: carimbo + assinatura desenhada) e arrastar cada uma para posicioná-la</p>
       </div>
       <input type="file" class="input-assinatura" accept="image/png,image/jpeg" style="display:none">
+    </div>
+    <div class="stamp-actions">
+      <button type="button" class="btn btn-secondary btn-small btn-enviar-assinatura">Enviar Carimbo/Assinatura</button>
+      <button type="button" class="btn btn-primary btn-small btn-desenhar-assinatura">Desenhar Assinatura</button>
     </div>
   </div>
 
@@ -330,11 +333,14 @@
     <label>Assinatura do Profissional Responsável</label>
     <div class="stamp-box" data-assinatura-id="pagina2">
       <div class="stamp-placeholder">
-        <p>Nenhuma assinatura enviada</p>
-        <button type="button" class="btn btn-secondary btn-small btn-enviar-assinatura">Enviar Assinatura</button>
-        <p class="stamp-hint">Depois de enviar, arraste a assinatura para posicioná-la</p>
+        <p>Nenhuma assinatura ou carimbo inserido</p>
+        <p class="stamp-hint">Você pode inserir mais de uma imagem (ex.: carimbo + assinatura desenhada) e arrastar cada uma para posicioná-la</p>
       </div>
       <input type="file" class="input-assinatura" accept="image/png,image/jpeg" style="display:none">
+    </div>
+    <div class="stamp-actions">
+      <button type="button" class="btn btn-secondary btn-small btn-enviar-assinatura">Enviar Carimbo/Assinatura</button>
+      <button type="button" class="btn btn-primary btn-small btn-desenhar-assinatura">Desenhar Assinatura</button>
     </div>
   </div>
 
@@ -350,6 +356,28 @@
 </div>
 
 </form>
+
+<!-- MODAL: assinatura desenhada na tela (celular/tablet) -->
+<div id="modalAssinatura" class="sig-modal" role="dialog" aria-modal="true" aria-labelledby="sigModalTitulo" hidden>
+  <div class="sig-modal-panel">
+    <div class="sig-modal-head">
+      <strong id="sigModalTitulo">Assine com o dedo ou com a caneta</strong>
+      <span>Dica: gire o celular na horizontal para ter mais espaço.</span>
+    </div>
+    <div class="sig-canvas-wrap">
+      <canvas class="sig-canvas"></canvas>
+      <div class="sig-baseline"></div>
+      <div class="sig-hint">Assine aqui</div>
+    </div>
+    <div class="sig-modal-foot">
+      <button type="button" class="btn btn-secondary btn-small" data-sig="desfazer">Desfazer</button>
+      <button type="button" class="btn btn-secondary btn-small" data-sig="limpar">Limpar</button>
+      <span class="sig-spacer"></span>
+      <button type="button" class="btn btn-secondary btn-small" data-sig="cancelar">Cancelar</button>
+      <button type="button" class="btn btn-primary btn-small" data-sig="confirmar">Usar assinatura</button>
+    </div>
+  </div>
+</div>
 <script src="js/vendor/pdf-lib.min.js"></script>
 <script src="js/vendor/fontkit.umd.min.js"></script>
 <script src="js/vendor/fonts-embedded.js"></script>
