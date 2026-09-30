@@ -49,7 +49,7 @@ function iniciarCampoAssinatura(caixa){
   });
 
   // Assinatura desenhada na tela (celular/tablet)
-  var botaoDesenhar = campo.querySelector('.btn-desenhar-assinatura');
+  var botaoDesenhar = caixa.querySelector('.btn-desenhar-assinatura');
   if(botaoDesenhar){
     botaoDesenhar.addEventListener('click', function(){
       abrirModalDesenho(function(dataUrl){
