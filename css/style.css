@@ -254,6 +254,101 @@
   .btn-secondary{background:#e3e8ec;color:#333;}
   .btn-secondary:hover{background:#d3dae0;}
 
+
+  /* ---- Assinatura desenhada na tela ---- */
+  .stamp-actions{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:8px;
+  }
+  /* Só aparece em celular/tablet (tela pequena ou toque). Para liberar
+     também no computador, basta apagar este bloco e o @media abaixo. */
+  .btn-desenhar-assinatura{display:none;}
+  @media (max-width:720px), (pointer:coarse){
+    .btn-desenhar-assinatura{display:inline-block;}
+  }
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  body.sig-modal-aberto{overflow:hidden;}
+  .sig-modal{
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    display:flex;
+    padding:12px;
+    background:rgba(0,0,0,.6);
+    overscroll-behavior:contain;
+    touch-action:none;
+  }
+  .sig-modal[hidden]{display:none;}
+  .sig-modal-panel{
+    margin:auto;
+    width:100%;
+    max-width:720px;
+    height:100%;
+    max-height:520px;
+    display:flex;
+    flex-direction:column;
+    background:#fff;
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  .sig-modal-head{
+    padding:10px 14px 8px 14px;
+    background:var(--azul-header);
+    color:#fff;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .sig-modal-head strong{font-size:15px;}
+  .sig-modal-head span{font-size:11px;opacity:.85;}
+  .sig-canvas-wrap{
+    position:relative;
+    flex:1;
+    min-height:0;
+    margin:10px 12px 0 12px;
+    border:1px solid var(--cinza-linha);
+    border-radius:4px;
+    background:#fff;
+    overflow:hidden;
+  }
+  .sig-canvas{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    touch-action:none;
+    cursor:crosshair;
+  }
+  .sig-baseline{
+    position:absolute;
+    left:16px;right:16px;
+    bottom:32%;
+    border-bottom:1px dashed #b8c7d6;
+    pointer-events:none;
+  }
+  .sig-hint{
+    position:absolute;
+    left:0;right:0;
+    bottom:calc(32% - 22px);
+    text-align:center;
+    font-size:12px;
+    color:#a9b8c6;
+    pointer-events:none;
+  }
+  .sig-canvas-wrap.com-traco .sig-hint{display:none;}
+  .sig-modal-foot{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    padding:10px 12px 12px 12px;
+  }
+  .sig-modal-foot .btn{width:100%;padding:11px 8px;font-size:13px;}
+  .sig-spacer{display:none;}
+
   @media (max-width:720px){
     .grid{grid-template-columns:1fr;}
     .endereco-row{grid-template-columns:1fr;}
@@ -265,6 +360,7 @@
 
     body{background:#fff;padding:0;font-size:11px;}
     .toolbar{display:none;}
+    .sig-modal{display:none !important;}
 
     .sheet{
       max-width:100%;
