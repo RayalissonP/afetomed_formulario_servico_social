@@ -148,10 +148,10 @@
     touch-action:none;
     -webkit-user-select:none;
     user-select:none;
-    box-shadow:0 0 0 1px rgba(12,104,105,.35);
-    background:#fff;
+    background:transparent; /* PNG do desenho é transparente: sem retângulo branco */
   }
-  .stamp-img:active{cursor:grabbing;}
+  /* contorno de apoio só enquanto a imagem está sendo arrastada */
+  .stamp-img:active{cursor:grabbing;box-shadow:0 0 0 1px rgba(12,104,105,.35);}
   .stamp-remove-btn{
     position:absolute;
     top:0;left:0;
