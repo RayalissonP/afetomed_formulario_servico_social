@@ -1075,6 +1075,10 @@ function desenharGrade(ctx, campos){
 var PADDING_ASSINATURA = 5;
 var ALTURA_TETO_ASSINATURA = 220; // pt - teto de segurança absoluto (evita algo absurdo)
 var ALTURA_PADRAO_ASSINATURA = 34; // pt - usado só se a caixa não for encontrada no DOM
+var ALTURA_MIN_ASSINATURA = 40;    // pt - altura mínima da caixa compactada ao redor das imagens
+var FOLGA_VERTICAL_ASSINATURA = 6; // pt - respiro acima/abaixo das imagens na caixa compactada
+var FATOR_MIN_REDUCAO_ASSINATURA = 0.45; // só reduz para caber na página até esta proporção
+var RESERVA_RODAPE_ASSINATURA = 8; // pt - folga para o rodapé não encostar na caixa
 
 // Lê o estado atual (em pixels) de uma caixa de assinatura no DOM: o
 // tamanho da própria caixa (que o usuário pode ter aumentado arrastando a
@@ -1170,6 +1174,21 @@ function calcularLayoutAssinatura(assinatura){
     });
   }
 
+  // Caixa compacta: se o usuário NÃO redimensionou a caixa manualmente, a
+  // altura no PDF acompanha só o espaço que as imagens realmente ocupam
+  // (em vez da altura da caixa na tela, que no celular fica grande demais
+  // e empurrava a seção de assinatura para a folha seguinte).
+  if(!assinatura.alturaPersonalizada && itens.length){
+    var topo = Math.min.apply(null, itens.map(function(it){ return it.offsetY; }));
+    var base = Math.max.apply(null, itens.map(function(it){ return it.offsetY + it.altura; }));
+    var necessaria = (base - topo) + FOLGA_VERTICAL_ASSINATURA * 2;
+    alturaCaixa = Math.max(ALTURA_MIN_ASSINATURA, necessaria);
+    var sobra = (alturaCaixa - necessaria) / 2;
+    itens.forEach(function(it){
+      it.offsetY = it.offsetY - topo + FOLGA_VERTICAL_ASSINATURA + sobra;
+    });
+  }
+
   return {
     temImagem: true,
     alturaCaixa: alturaCaixa,
@@ -1177,8 +1196,34 @@ function calcularLayoutAssinatura(assinatura){
   };
 }
 
+// Se a seção de assinatura não couber no que resta da página atual, reduz
+// a caixa e as imagens na mesma proporção (até um limite) para que ela
+// continue na mesma folha. Abaixo do limite, quebra de página como antes.
+// Não mexe quando o usuário definiu a altura da caixa manualmente.
+function ajustarAssinaturaAoEspaco(ctx, layout, assinatura){
+  if(!layout.temImagem || (assinatura && assinatura.alturaPersonalizada)) return;
+
+  var fixo = 26 + ALTURA_LABEL + GAP_LABEL_CAIXA + ESPACO_ENTRE_LINHAS;
+  var disponivel = (PAGE_H - MARGEM - RESERVA_RODAPE_ASSINATURA) - ctx.y - fixo;
+  if(layout.alturaCaixa <= disponivel) return;
+
+  var fator = disponivel / layout.alturaCaixa;
+  if(fator < FATOR_MIN_REDUCAO_ASSINATURA) return;
+
+  layout.alturaCaixa *= fator;
+  layout.itens.forEach(function(it){
+    var centroX = it.offsetX + it.largura / 2; // mantém o centro horizontal
+    var centroY = (it.offsetY + it.altura / 2) * fator;
+    it.largura *= fator;
+    it.altura *= fator;
+    it.offsetX = centroX - it.largura / 2;
+    it.offsetY = centroY - it.altura / 2;
+  });
+}
+
 function desenharSecaoAssinatura(ctx, tituloSecao, rotuloCampo, assinatura){
   var layout = calcularLayoutAssinatura(assinatura);
+  ajustarAssinaturaAoEspaco(ctx, layout, assinatura);
   var alturaConteudo = ALTURA_LABEL + GAP_LABEL_CAIXA + layout.alturaCaixa + ESPACO_ENTRE_LINHAS;
   desenharTituloSecao(ctx, tituloSecao, alturaConteudo);
 
